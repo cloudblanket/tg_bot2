@@ -68,33 +68,21 @@ def run_bot_async() -> None:
     asyncio.run(main())
 
 
-# Запуск WebSocket сервера в отдельном потоке
-def run_sync_server_in_thread() -> None:
-    import threading
-    from services.sync import app
-    import uvicorn
-
-    port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
-
-    def _run():
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
-    thread = threading.Thread(target=_run, daemon=True)
-    thread.start()
-    logger.info("Sync server started on port %d", port)
-
-
-if __name__ == "__main__":
-    import threading
-
-    # Запускаем бота в отдельном потоке
-    bot_thread = threading.Thread(target=run_bot_async, daemon=True)
-    bot_thread.start()
-
-    # Запускаем веб-сервер как основной процесс (Render требует это)
+def _run_web_server() -> None:
     from services.sync import app
     import uvicorn
 
     port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
     logger.info("Web server starting on port %d", port)
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+
+
+if __name__ == "__main__":
+    import threading
+
+    # Запускаем веб-сервер в отдельном потоке (Render требует слушать порт)
+    server_thread = threading.Thread(target=_run_web_server, daemon=True)
+    server_thread.start()
+
+    # Запускаем бота в main thread (aiogram требует это)
+    asyncio.run(main())
