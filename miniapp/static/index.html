@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Киновечер</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Telegram Web App SDK -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Экран выбора комнаты -->
+        <div id="screen-lobby" class="screen active">
+            <div class="header">
+                <h1>🎬 Киновечер</h1>
+                <p class="subtitle">Смотри видео вместе с друзьями</p>
+            </div>
+
+            <div class="lobby-content">
+                <div class="input-group">
+                    <label for="room-code-input">Код комнаты</label>
+                    <input type="text" id="room-code-input" placeholder="Введи код комнаты..." maxlength="10">
+                </div>
+                <button id="btn-join" class="btn btn-primary">Присоединиться</button>
+
+                <div class="divider"><span>или</span></div>
+
+                <button id="btn-create" class="btn btn-secondary">Создать новую комнату</button>
+            </div>
+        </div>
+
+        <!-- Экран комнаты -->
+        <div id="screen-room" class="screen">
+            <div class="room-header">
+                <button id="btn-back" class="btn-icon">←</button>
+                <div class="room-info">
+                    <h2 id="room-title">Киновечер</h2>
+                    <span id="room-code-badge" class="badge"></span>
+                </div>
+                <div id="member-count" class="member-count">0</div>
+            </div>
+
+            <!-- Плеер -->
+            <div id="player-container">
+                <div id="player-placeholder" class="player-placeholder">
+                    <span>🎬</span>
+                    <p>Добавь видео, чтобы начать</p>
+                </div>
+                <div id="player"></div>
+            </div>
+
+            <!-- Управление -->
+            <div id="controls" class="controls hidden">
+                <button id="btn-seek-back" class="btn-control" title="−10 сек">⏪</button>
+                <button id="btn-play-pause" class="btn-control btn-main" title="Play/Pause">▶️</button>
+                <button id="btn-seek-forward" class="btn-control" title="+10 сек">⏩</button>
+                <span id="current-time" class="time-display">0:00</span>
+            </div>
+
+            <!-- Добавление видео -->
+            <div class="add-video-section">
+                <div class="input-group row">
+                    <input type="text" id="video-url-input" placeholder="Ссылка на YouTube..." flex="1">
+                    <button id="btn-add-video" class="btn btn-primary btn-sm">+</button>
+                </div>
+            </div>
+
+            <!-- Список видео -->
+            <div id="video-list" class="video-list"></div>
+
+            <!-- Участники -->
+            <div class="members-section">
+                <h3>👥 Участники</h3>
+                <div id="members-list" class="members-list"></div>
+            </div>
+
+            <!-- Чат -->
+            <div class="chat-section">
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-input" placeholder="Сообщение..." maxlength="500">
+                    <button id="btn-send-chat" class="btn btn-primary btn-sm">→</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
