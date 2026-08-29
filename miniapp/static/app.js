@@ -249,6 +249,7 @@ setInterval(updateTimeDisplay, 1000);
 
 function wsConnect(roomCode) {
     if (state.ws) {
+        state.ws.onclose = null;
         state.ws.close();
     }
 
@@ -256,9 +257,11 @@ function wsConnect(roomCode) {
     console.log('Connecting to WebSocket:', url);
 
     state.ws = new WebSocket(url);
+    state.reconnectAttempts = 0;
 
     state.ws.onopen = () => {
         console.log('WebSocket connected');
+        state.reconnectAttempts = 0;
         addChatMessage('Система', 'Подключено к серверу синхронизации');
     };
 
@@ -273,10 +276,12 @@ function wsConnect(roomCode) {
 
     state.ws.onclose = () => {
         console.log('WebSocket disconnected');
-        // Переподключение через 3 секунды
+        if (!state.roomCode) return;
+        state.reconnectAttempts = (state.reconnectAttempts || 0) + 1;
+        const delay = Math.min(1000 * state.reconnectAttempts, 10000);
         setTimeout(() => {
             if (state.roomCode) wsConnect(state.roomCode);
-        }, 3000);
+        }, delay);
     };
 
     state.ws.onerror = (error) => {

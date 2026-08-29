@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -13,6 +14,13 @@ from fastapi.responses import FileResponse
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Cinema Night Sync Server")
+
+start_time = time.time()
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "uptime": int(time.time() - start_time)}
 
 
 @dataclass
