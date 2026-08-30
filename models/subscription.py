@@ -8,9 +8,9 @@ from typing import Optional
 from services.database import get_db
 
 TIERS = {
-    "free": {"name": "Free", "price": 0, "max_members": 2, "features": ["YouTube"]},
-    "paid": {"name": "Paid", "price": 300, "max_members": 5, "features": ["YouTube", "Загрузка видео"]},
-    "vip": {"name": "VIP", "price": 1000, "max_members": 30, "features": ["YouTube", "Twitch", "Загрузка видео", "Кастомизация"]},
+    "free": {"name": "Free", "price": 0, "price_stars": 0, "max_members": 2, "features": ["YouTube"]},
+    "paid": {"name": "Paid", "price": 399, "price_stars": 399, "max_members": 5, "features": ["YouTube", "Загрузка видео"]},
+    "vip": {"name": "VIP", "price": 999, "price_stars": 999, "max_members": 30, "features": ["YouTube", "Twitch", "Загрузка видео", "Кастомизация"]},
 }
 
 

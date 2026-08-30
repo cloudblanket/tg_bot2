@@ -13,7 +13,6 @@ from models.subscription import Subscription, TIERS
 router = Router(name="subscribe")
 logger = logging.getLogger(__name__)
 
-PAYMENT_TOKEN = os.getenv("PAYMENT_TOKEN", "")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 
@@ -34,22 +33,24 @@ async def cmd_subscribe(message: types.Message) -> None:
 
     for key, tier in TIERS.items():
         current = " ← текущий" if key == sub.tier else ""
+        price = tier.get("price_stars", 0)
+        price_str = "бесплатно" if price == 0 else f"⭐ {price}"
         lines.append(
-            f"\n<b>{tier['name']}</b> — {'бесплатно' if tier['price'] == 0 else f'{tier['price']}₽/мес'}{current}\n"
+            f"\n<b>{tier['name']}</b> — {price_str}{current}\n"
             f"  👥 До {tier['max_members']} человек\n"
             f"  🎬 Источники: {', '.join(tier['features'])}"
         )
 
     builder = InlineKeyboardBuilder()
 
-    if sub.tier != "paid" and PAYMENT_TOKEN:
+    if sub.tier != "paid":
         builder.button(
-            text="💎 Paid — 300₽/мес",
+            text="💎 Paid — ⭐ 399",
             callback_data="subscribe:paid",
         )
-    if sub.tier != "vip" and PAYMENT_TOKEN:
+    if sub.tier != "vip":
         builder.button(
-            text="👑 VIP — 1000₽/мес",
+            text="👑 VIP — ⭐ 999",
             callback_data="subscribe:vip",
         )
     builder.adjust(1)
@@ -65,20 +66,17 @@ async def callback_subscribe(callback: types.CallbackQuery) -> None:
         await callback.answer("Неверный тариф.", show_alert=True)
         return
 
-    if not PAYMENT_TOKEN:
-        await callback.answer("Оплата пока недоступна.", show_alert=True)
-        return
-
     tier_info = TIERS[tier]
+    price_stars = tier_info.get("price_stars", 0)
 
     await callback.message.bot.send_invoice(
         chat_id=callback.from_user.id,
         title=f"Подписка {tier_info['name']}",
         description=f"Доступ к функциям {tier_info['name']} на 30 дней",
         payload=f"sub:{tier}:{callback.from_user.id}",
-        provider_token=PAYMENT_TOKEN,
-        currency="RUB",
-        prices=[types.LabeledPrice(label=f"Подписка {tier_info['name']}", amount=tier_info["price"] * 100)],
+        provider_token="",
+        currency="XTR",
+        prices=[types.LabeledPrice(label=f"Подписка {tier_info['name']}", amount=price_stars)],
     )
     await callback.answer()
 
