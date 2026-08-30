@@ -14,6 +14,7 @@ router = Router(name="subscribe")
 logger = logging.getLogger(__name__)
 
 PAYMENT_TOKEN = os.getenv("PAYMENT_TOKEN", "")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 
 @router.message(Command("subscribe"))
@@ -120,3 +121,34 @@ async def successful_payment(message: types.Message) -> None:
                 f"⏰ Действует 30 дней",
                 parse_mode="HTML",
             )
+
+
+@router.message(Command("vip"))
+async def cmd_vip(message: types.Message) -> None:
+    if ADMIN_ID and message.from_user.id != ADMIN_ID:
+        await message.answer("❌ Нет доступа.")
+        return
+
+    args = message.text.split()
+    if len(args) < 2:
+        telegram_id = message.from_user.id
+    else:
+        try:
+            telegram_id = int(args[1])
+        except ValueError:
+            await message.answer("❌ Укажи telegram_id числом.")
+            return
+
+    sub = Subscription.get_by_telegram_id(telegram_id)
+    sub.tier = "vip"
+    from datetime import datetime, timedelta
+    sub.started_at = datetime.now().isoformat()
+    sub.expires_at = (datetime.now() + timedelta(days=3650)).isoformat()
+    sub.save()
+
+    user = User.get_by_telegram_id(telegram_id)
+    if user:
+        user.tier = "vip"
+        user.save()
+
+    await message.answer(f"✅ VIP активирован для {telegram_id}")
