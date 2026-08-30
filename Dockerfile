@@ -16,4 +16,4 @@ ENV DATABASE_PATH=/app/data/bot.db
 
 EXPOSE 8765
 
-CMD ["python", "bot.py"]
+CMD ["python", "web.py"]
