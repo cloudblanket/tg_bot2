@@ -4,6 +4,7 @@ import os
 from aiogram import Router, types, F
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
 from models.room import Room, Video
@@ -32,21 +33,21 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
 
     room = Room.get_by_code(code)
     if room is None:
-        builder = types.InlineKeyboardBuilder()
-        builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
-            "❌ Комната не найдена.",
-            reply_markup=builder.as_markup(),
-        )
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+    await message.answer(
+        "❌ Комната не найдена.",
+        reply_markup=builder.as_markup(),
+    )
         return
 
     if not room.is_active:
-        builder = types.InlineKeyboardBuilder()
-        builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
-            "❌ Комната закрыта.",
-            reply_markup=builder.as_markup(),
-        )
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+    await message.answer(
+        "❌ Комната закрыта.",
+        reply_markup=builder.as_markup(),
+    )
         return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
@@ -74,7 +75,6 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "menu:join")
 async def callback_join(callback: types.CallbackQuery, state: FSMContext) -> None:
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:main")
     await callback.message.edit_text(
