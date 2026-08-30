@@ -69,7 +69,7 @@ async def broadcast_to_room(room_code: str, message: dict[str, Any], exclude: Op
             dead.append(i)
 
     for i in reversed(dead):
-        room.connections.pop(i, None)
+        room.connections.pop(i)
 
 
 @app.websocket("/ws/{room_code}")

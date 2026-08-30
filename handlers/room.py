@@ -19,7 +19,7 @@ class JoinState(StatesGroup):
     waiting_code = State()
 
 
-@router.message(JoinState.waiting_code)
+@router.message(JoinState.waiting_code, F.text)
 async def process_join_code(message: types.Message, state: FSMContext) -> None:
     await state.clear()
     code = message.text.strip()

@@ -20,6 +20,7 @@ def main_menu_keyboard() -> types.InlineKeyboardMarkup:
     builder.button(text="📋 Мои комнаты", callback_data="menu:rooms")
     builder.button(text="💳 Подписка", callback_data="menu:subscribe")
     builder.button(text="👤 Профиль", callback_data="menu:profile")
+    builder.button(text="❓ Помощь", callback_data="menu:help")
     builder.adjust(1)
     return builder.as_markup()
 
@@ -146,7 +147,7 @@ async def callback_leave_room(callback: types.CallbackQuery) -> None:
     await callback.answer("Ты вышел из комнаты.", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("room:"))
+@router.callback_query(F.data.startswith("room:") & ~F.data.startswith("room:leave:"))
 async def callback_room(callback: types.CallbackQuery) -> None:
     from models.room import Room
 
@@ -177,6 +178,39 @@ async def callback_room(callback: types.CallbackQuery) -> None:
     await callback.message.edit_text(
         f"📌 {room.title} ({room.code})\n"
         f"👥 Участники ({len(members)}): {member_names}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu:help")
+async def callback_help(callback: types.CallbackQuery) -> None:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+    await callback.message.edit_text(
+        "📚 <b>Как пользоваться ботом</b>\n\n"
+        "1️⃣ <b>Создай комнату</b> — нажми «Создать комнату»\n"
+        "2️⃣ <b>Пригласи друга</b> — отправь ему код комнаты\n"
+        "3️⃣ <b>Друг заходит</b> — нажимает «Войти в комнату» и вводит код\n"
+        "4️⃣ <b>Откройте приложение</b> — нажмите «Открыть киновечер»\n\n"
+        "🎬 <b>YouTube</b>\n"
+        "Вставь ссылку на видео в поле чата в приложении.\n"
+        "Пример: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n"
+        "📺 <b>Twitch</b> (VIP)\n"
+        "Вставь ссылку на стрим: https://www.twitch.tv/username\n\n"
+        "📤 <b>Загрузка видео</b> (Paid+)\n"
+        "Отправь видео файлом боту — оно доступно для просмотра 1 раз.\n\n"
+        "🎭 <b>Театрный режим</b>\n"
+        "Нажми на видео → «На весь экран» для полноэкранного просмотра.\n\n"
+        "💬 <b>Режим чата</b>\n"
+        "Переключись на вкладку «Чат» для полноэкранного чата как на Twitch.\n\n"
+        "🎨 <b>Темы</b> (VIP)\n"
+        "Нажми «Тема» в приложении чтобы сменить оформление.\n\n"
+        "💳 <b>Подписка</b>\n"
+        "• Free: 2 участника, YouTube\n"
+        "• Paid (399⭐): 5 участников, загрузка видео\n"
+        "• VIP (999⭐): 30 участников, Twitch, темы",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )

@@ -7,9 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 from services.database import get_db
-
-FREE_MAX_MEMBERS = 5
-PREMIUM_MAX_MEMBERS = 50
+from models.subscription import Subscription
 
 
 @dataclass
@@ -114,13 +112,17 @@ class Room:
         ).fetchone()
         return row[0] if row else 0
 
-    def can_add_member(self, is_premium: bool = False) -> bool:
+    def can_add_member(self, telegram_id: int = 0) -> bool:
         count = self.member_count()
-        limit = PREMIUM_MAX_MEMBERS if is_premium else FREE_MAX_MEMBERS
+        if telegram_id:
+            sub = Subscription.get_by_telegram_id(telegram_id)
+            limit = sub.max_members
+        else:
+            limit = 5
         return count < limit
 
     def add_member(self, telegram_id: int) -> bool:
-        if not self.can_add_member():
+        if not self.can_add_member(telegram_id):
             return False
         db = get_db()
         db.execute(

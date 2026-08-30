@@ -5,7 +5,6 @@ import logging
 from typing import Any
 
 from aiogram import Router, types, F
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
 from models.room import Room, Video
@@ -76,16 +75,6 @@ async def _handle_add_video(message: types.Message, data: dict[str, Any], room: 
 
 async def _handle_play(message: types.Message, data: dict[str, Any], room: Room) -> None:
     timestamp = data.get("timestamp", 0)
-    members = room.get_members()
-
-    builder = InlineKeyboardBuilder()
-    for member in members:
-        if member["telegram_id"] != message.from_user.id:
-            builder.button(
-                text=f"▶️ Play → {member['first_name'] or member['username']}",
-                callback_data=f"sync:play:{room.code}:{timestamp}",
-            )
-
     await message.answer(
         f"▶️ {message.from_user.first_name} нажал Play (таймкод: {int(timestamp)}с)"
     )
