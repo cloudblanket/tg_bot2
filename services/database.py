@@ -31,7 +31,8 @@ def init_tables(db: sqlite3.Connection) -> None:
             telegram_id INTEGER UNIQUE NOT NULL,
             username TEXT,
             first_name TEXT,
-            is_premium INTEGER DEFAULT 0
+            is_premium INTEGER DEFAULT 0,
+            tier TEXT DEFAULT 'free'
         );
 
         CREATE TABLE IF NOT EXISTS rooms (
@@ -63,10 +64,21 @@ def init_tables(db: sqlite3.Connection) -> None:
             FOREIGN KEY (room_id) REFERENCES rooms(id)
         );
 
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            telegram_id INTEGER NOT NULL,
+            tier TEXT NOT NULL DEFAULT 'free',
+            started_at TEXT NOT NULL,
+            expires_at TEXT,
+            payment_id TEXT,
+            UNIQUE(telegram_id)
+        );
+
         CREATE INDEX IF NOT EXISTS idx_room_members_telegram ON room_members(telegram_id);
         CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id);
         CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code);
         CREATE INDEX IF NOT EXISTS idx_videos_room ON videos(room_id);
+        CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id);
         """
     )
     db.commit()

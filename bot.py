@@ -17,6 +17,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from handlers.start import router as start_router
 from handlers.room import router as room_router
 from handlers.webapp import router as webapp_router
+from handlers.subscribe import router as subscribe_router
+from handlers.upload import router as upload_router
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -53,6 +55,8 @@ async def main() -> None:
 
     dp.include_router(start_router)
     dp.include_router(room_router)
+    dp.include_router(subscribe_router)
+    dp.include_router(upload_router)
     dp.include_router(webapp_router)
 
     me = await bot.get_me()

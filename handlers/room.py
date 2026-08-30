@@ -9,6 +9,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
 from models.room import Room, Video
+from models.subscription import Subscription
 
 router = Router(name="room")
 
@@ -29,6 +30,8 @@ async def cmd_create(message: types.Message) -> None:
     )
     user.save()
 
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+
     room = Room.create(creator_id=message.from_user.id)
     room.add_member(message.from_user.id)
 
@@ -42,6 +45,7 @@ async def cmd_create(message: types.Message) -> None:
     await message.answer(
         f"🎉 Комната создана!\n\n"
         f"📌 Код комнаты: <code>{room.code}</code>\n"
+        f"👥 Лимит: {sub.max_members} человек ({sub.tier.upper()})\n"
         f"🔗 Ссылка-приглашение: https://t.me/{(await message.bot.me()).username}?start=join_{room.code}\n\n"
         f"Поделись кодом или ссылкой с друзьями!",
         reply_markup=builder.as_markup(),
@@ -87,11 +91,13 @@ async def _join_room(message: types.Message, code: str, state: FSMContext) -> No
         await message.answer("❌ Эта комната уже закрыта.")
         return
 
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+    limit = sub.max_members
+
     if not room.add_member(message.from_user.id):
-        limit = "50" if user.is_premium else "5"
         await message.answer(
             f"⚠️ Комната заполнена (макс. {limit} участников).\n"
-            "Попроси кого-то выйти или обнови тариф."
+            "Попроси кого-то выйти или обнови тариф /subscribe"
         )
         return
 

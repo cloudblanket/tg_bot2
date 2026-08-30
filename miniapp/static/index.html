@@ -41,33 +41,64 @@
                 <div id="member-count" class="member-count">0</div>
             </div>
 
-            <!-- Плеер -->
-            <div id="player-container">
-                <div id="player-placeholder" class="player-placeholder">
-                    <span>🎬</span>
-                    <p>Добавь видео, чтобы начать</p>
+            <!-- Вкладки -->
+            <div class="tabs">
+                <button class="tab active" data-tab="youtube">🎬 YouTube</button>
+                <button class="tab" data-tab="twitch" id="tab-twitch" style="display:none">🔴 Twitch</button>
+                <button class="tab" data-tab="upload" id="tab-upload" style="display:none">📤 Загрузка</button>
+            </div>
+
+            <!-- YouTube плеер -->
+            <div id="tab-content-youtube" class="tab-content active">
+                <div id="player-container">
+                    <div id="player-placeholder" class="player-placeholder">
+                        <span>🎬</span>
+                        <p>Добавь видео, чтобы начать</p>
+                    </div>
+                    <div id="player"></div>
                 </div>
-                <div id="player"></div>
+
+                <div id="controls" class="controls hidden">
+                    <button id="btn-seek-back" class="btn-control" title="−10 сек">⏪</button>
+                    <button id="btn-play-pause" class="btn-control btn-main" title="Play/Pause">▶️</button>
+                    <button id="btn-seek-forward" class="btn-control" title="+10 сек">⏩</button>
+                    <span id="current-time" class="time-display">0:00</span>
+                </div>
+
+                <div class="add-video-section">
+                    <div class="input-group row">
+                        <input type="text" id="video-url-input" placeholder="Ссылка на YouTube..." flex="1">
+                        <button id="btn-add-video" class="btn btn-primary btn-sm">+</button>
+                    </div>
+                </div>
+
+                <div id="video-list" class="video-list"></div>
             </div>
 
-            <!-- Управление -->
-            <div id="controls" class="controls hidden">
-                <button id="btn-seek-back" class="btn-control" title="−10 сек">⏪</button>
-                <button id="btn-play-pause" class="btn-control btn-main" title="Play/Pause">▶️</button>
-                <button id="btn-seek-forward" class="btn-control" title="+10 сек">⏩</button>
-                <span id="current-time" class="time-display">0:00</span>
-            </div>
-
-            <!-- Добавление видео -->
-            <div class="add-video-section">
-                <div class="input-group row">
-                    <input type="text" id="video-url-input" placeholder="Ссылка на YouTube..." flex="1">
-                    <button id="btn-add-video" class="btn btn-primary btn-sm">+</button>
+            <!-- Twitch плеер -->
+            <div id="tab-content-twitch" class="tab-content">
+                <div class="add-video-section">
+                    <div class="input-group row">
+                        <input type="text" id="twitch-channel-input" placeholder="Канал Twitch (напр. shroud)" flex="1">
+                        <button id="btn-twitch-play" class="btn btn-primary btn-sm">▶</button>
+                    </div>
+                </div>
+                <div id="twitch-player-container" class="player-container">
+                    <div id="twitch-player-placeholder" class="player-placeholder">
+                        <span>🔴</span>
+                        <p>Введи название канала Twitch</p>
+                    </div>
+                    <div id="twitch-player"></div>
                 </div>
             </div>
 
-            <!-- Список видео -->
-            <div id="video-list" class="video-list"></div>
+            <!-- Загрузка видео -->
+            <div id="tab-content-upload" class="tab-content">
+                <div class="upload-section">
+                    <p>📤 Отправь видео боту в Telegram (/upload), и оно появится здесь.</p>
+                    <div id="uploaded-videos" class="video-list"></div>
+                </div>
+            </div>
 
             <!-- Участники -->
             <div class="members-section">
@@ -82,6 +113,20 @@
                     <input type="text" id="chat-input" placeholder="Сообщение..." maxlength="500">
                     <button id="btn-send-chat" class="btn btn-primary btn-sm">→</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Настройки темы (VIP) -->
+        <div id="theme-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>🎨 Выбери тему</h3>
+                <div class="theme-grid">
+                    <button class="theme-btn" data-theme="dark">🌙 Тёмная</button>
+                    <button class="theme-btn" data-theme="light">☀️ Светлая</button>
+                    <button class="theme-btn" data-theme="neon">💚 Неон</button>
+                    <button class="theme-btn" data-theme="space">🌌 Космос</button>
+                </div>
+                <button id="btn-close-theme" class="btn btn-secondary">Закрыть</button>
             </div>
         </div>
     </div>

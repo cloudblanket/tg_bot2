@@ -150,6 +150,7 @@ import os
 from pathlib import Path
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "miniapp" / "static"
+UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "uploads"
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR), cache_max_age=3600), name="static")
@@ -157,6 +158,32 @@ if STATIC_DIR.exists():
     @app.get("/")
     async def index():
         return FileResponse(str(STATIC_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/view/{filename}")
+async def view_video(filename: str):
+    import re
+    if not re.match(r'^[a-f0-9\-]+\.mp4$', filename):
+        return {"error": "Invalid filename"}
+
+    file_path = UPLOAD_DIR / filename
+    if not file_path.exists():
+        return {"error": "Video not found or already viewed"}
+
+    from fastapi.responses import FileResponse
+    resp = FileResponse(str(file_path), media_type="video/mp4")
+
+    import asyncio
+    async def delete_after_view():
+        await asyncio.sleep(1)
+        try:
+            file_path.unlink()
+            logger.info("Deleted viewed video: %s", filename)
+        except Exception:
+            pass
+
+    asyncio.create_task(delete_after_view())
+    return resp
 
 
 if __name__ == "__main__":

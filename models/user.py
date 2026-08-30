@@ -13,20 +13,22 @@ class User:
     username: Optional[str] = None
     first_name: Optional[str] = None
     is_premium: bool = False
+    tier: str = "free"
     id: Optional[int] = field(default=None, repr=False)
 
     def save(self) -> None:
         db = get_db()
         cursor = db.execute(
             """
-            INSERT INTO users (telegram_id, username, first_name, is_premium)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (telegram_id, username, first_name, is_premium, tier)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(telegram_id) DO UPDATE SET
                 username = excluded.username,
                 first_name = excluded.first_name,
-                is_premium = excluded.is_premium
+                is_premium = excluded.is_premium,
+                tier = excluded.tier
             """,
-            (self.telegram_id, self.username, self.first_name, self.is_premium),
+            (self.telegram_id, self.username, self.first_name, self.is_premium, self.tier),
         )
         db.commit()
         self.id = cursor.lastrowid
@@ -35,7 +37,7 @@ class User:
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[User]:
         db = get_db()
         row = db.execute(
-            "SELECT id, telegram_id, username, first_name, is_premium FROM users WHERE telegram_id = ?",
+            "SELECT id, telegram_id, username, first_name, is_premium, tier FROM users WHERE telegram_id = ?",
             (telegram_id,),
         ).fetchone()
         if row is None:
@@ -46,4 +48,5 @@ class User:
             username=row[2],
             first_name=row[3],
             is_premium=bool(row[4]),
+            tier=row[5] or "free",
         )

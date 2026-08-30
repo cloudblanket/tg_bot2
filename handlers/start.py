@@ -6,6 +6,7 @@ from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
+from models.subscription import Subscription
 
 router = Router(name="start")
 
@@ -22,6 +23,8 @@ async def cmd_start(message: types.Message) -> None:
     )
     user.save()
 
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+
     builder = InlineKeyboardBuilder()
     builder.button(
         text="🎬 Открыть киновечер",
@@ -31,10 +34,13 @@ async def cmd_start(message: types.Message) -> None:
 
     await message.answer(
         f"👋 Привет, {message.from_user.first_name}!\n\n"
-        "Я — бот для совместного просмотра видео.\n\n"
+        f"Я — бот для совместного просмотра видео.\n"
+        f"💳 Тариф: <b>{sub.tier.upper()}</b>\n\n"
         "🎬 Создай комнату командой /create\n"
         "🔗 Присоединись по коду /join КОД_КОМНАТЫ\n"
-        "📋 Свои комнаты /rooms\n\n"
+        "📋 Свои комнаты /rooms\n"
+        "💳 Подписка /subscribe\n\n"
         "Или нажми кнопку ниже, чтобы открыть киновечер:",
         reply_markup=builder.as_markup(),
+        parse_mode="HTML",
     )

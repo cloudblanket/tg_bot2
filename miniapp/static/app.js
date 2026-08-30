@@ -3,21 +3,9 @@
  * Совместный просмотр видео через Telegram WebApp
  */
 
-// ==========================================
-// НАСТРОЙКИ
-// ==========================================
-
-// URL WebSocket сервера синхронизации.
-// Замени на свой адрес при деплое.
-// Для локальной разработки: ws://localhost:8765
-// Для продакшена: wss://your-domain.com/ws
 const SYNC_WS_URL = window.location.hostname === 'localhost'
     ? 'ws://localhost:8765/ws'
     : `wss://${window.location.host}/ws`;
-
-// ==========================================
-// ИНИЦИАЛИЗАЦИЯ TELEGRAM WEB APP
-// ==========================================
 
 const tg = window.Telegram?.WebApp;
 if (tg) {
@@ -25,10 +13,6 @@ if (tg) {
     tg.expand();
     tg.enableClosingConfirmation();
 }
-
-// ==========================================
-// СОСТОЯНИЕ ПРИЛОЖЕНИЯ
-// ==========================================
 
 const state = {
     roomCode: null,
@@ -41,12 +25,9 @@ const state = {
     members: [],
     videos: [],
     ws: null,
-    isSyncing: false, // флаг, чтобы не обрабатывать свои же команды
+    isSyncing: false,
+    userTier: 'free',
 };
-
-// ==========================================
-// DOM ЭЛЕМЕНТЫ
-// ==========================================
 
 const els = {
     screenLobby: document.getElementById('screen-lobby'),
@@ -73,11 +54,15 @@ const els = {
     chatMessages: document.getElementById('chat-messages'),
     chatInput: document.getElementById('chat-input'),
     btnSendChat: document.getElementById('btn-send-chat'),
+    tabTwitch: document.getElementById('tab-twitch'),
+    tabUpload: document.getElementById('tab-upload'),
+    twitchChannelInput: document.getElementById('twitch-channel-input'),
+    btnTwitchPlay: document.getElementById('btn-twitch-play'),
+    twitchPlayer: document.getElementById('twitch-player'),
+    twitchPlayerPlaceholder: document.getElementById('twitch-player-placeholder'),
+    themeModal: document.getElementById('theme-modal'),
+    btnCloseTheme: document.getElementById('btn-close-theme'),
 };
-
-// ==========================================
-// УТИЛИТЫ
-// ==========================================
 
 function formatTime(seconds) {
     const s = Math.floor(seconds);
@@ -121,21 +106,28 @@ function escapeHtml(str) {
 }
 
 // ==========================================
+// TABS
+// ==========================================
+
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        const tabName = tab.dataset.tab;
+        document.getElementById(`tab-content-${tabName}`).classList.add('active');
+    });
+});
+
+// ==========================================
 // YOUTUBE PLAYER
 // ==========================================
 
 let ytPlayer = null;
 let ytApiReady = false;
 
-// Загружаем YouTube IFrame API
-// ВНИМАНИЕ: Если YouTube заблокирован, замени URL на прокси-сервер или
-// используй альтернативный плеер (например, html5 <video> тег для VK Video, Rutube и т.д.)
-// Пример: const YT_API_URL = 'https://your-proxy.com/youtube/iframe_api';
 function loadYouTubeAPI() {
     const tag = document.createElement('script');
-    // YouTube IFrame API
-    // Если YouTube заблокирован, замени на зеркало или прокси:
-    // tag.src = 'https://your-mirror.com/youtube/iframe_api';
     tag.src = 'https://www.youtube.com/iframe_api';
     const firstScriptTag = document.getElementsByTagName('script')[0];
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
@@ -143,15 +135,9 @@ function loadYouTubeAPI() {
 
 window.onYouTubeIframeAPIReady = function () {
     ytApiReady = true;
-    console.log('YouTube IFrame API ready');
 };
 
 function createPlayer(videoId) {
-    // Если YouTube заблокирован, используй альтернативный плеер:
-    // 1. Rutube: <iframe src="https://rutube.ru/..."/>
-    // 2. VK Video: <iframe src="https://vk.com/video_ext.php?..."/>
-    // 3. Кастомный HTML5 плеер через прокси
-
     if (ytPlayer) {
         ytPlayer.loadVideoById(videoId);
         return;
@@ -182,11 +168,10 @@ function createPlayer(videoId) {
 function onPlayerReady(event) {
     state.playerReady = true;
     els.controls.classList.remove('hidden');
-    console.log('Player ready');
 }
 
 function onPlayerStateChange(event) {
-    if (state.isSyncing) return; // Игнорируем свои команды
+    if (state.isSyncing) return;
 
     const YT_PLAYING = 1;
     const YT_PAUSED = 2;
@@ -240,8 +225,78 @@ function updateTimeDisplay() {
     els.currentTime.textContent = formatTime(time);
 }
 
-// Обновляем время каждую секунду
 setInterval(updateTimeDisplay, 1000);
+
+// ==========================================
+// TWITCH PLAYER
+// ==========================================
+
+let twitchPlayerInstance = null;
+
+function loadTwitchAPI() {
+    const tag = document.createElement('script');
+    tag.src = 'https://player.twitch.tv/js/embed/v1.js';
+    const firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+}
+
+function createTwitchPlayer(channel) {
+    if (twitchPlayerInstance) {
+        twitchPlayerInstance.setChannel(channel);
+        return;
+    }
+
+    els.twitchPlayerPlaceholder.classList.add('hidden');
+
+    twitchPlayerInstance = new Twitch.Player('twitch-player', {
+        channel: channel,
+        width: '100%',
+        height: '100%',
+        autoplay: false,
+        muted: false,
+    });
+}
+
+els.btnTwitchPlay?.addEventListener('click', () => {
+    const channel = els.twitchChannelInput.value.trim();
+    if (!channel) return;
+    createTwitchPlayer(channel);
+    wsSend({ action: 'set_video', url: `https://twitch.tv/${channel}`, sender: getUserDisplayName() });
+});
+
+els.twitchChannelInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') els.btnTwitchPlay.click();
+});
+
+// ==========================================
+// THEMES (VIP)
+// ==========================================
+
+function applyTheme(theme) {
+    document.body.className = '';
+    if (theme !== 'dark') {
+        document.body.classList.add(`theme-${theme}`);
+    }
+    localStorage.setItem('kinovecher-theme', theme);
+}
+
+function loadSavedTheme() {
+    const saved = localStorage.getItem('kinovecher-theme');
+    if (saved) applyTheme(saved);
+}
+
+document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        applyTheme(btn.dataset.theme);
+        document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        tg?.HapticFeedback?.impactOccurred('light');
+    });
+});
+
+els.btnCloseTheme?.addEventListener('click', () => {
+    els.themeModal.classList.add('hidden');
+});
 
 // ==========================================
 // WEBSOCKET СИНХРОНИЗАЦИЯ
@@ -254,13 +309,11 @@ function wsConnect(roomCode) {
     }
 
     const url = `${SYNC_WS_URL}/${roomCode}`;
-    console.log('Connecting to WebSocket:', url);
 
     state.ws = new WebSocket(url);
     state.reconnectAttempts = 0;
 
     state.ws.onopen = () => {
-        console.log('WebSocket connected');
         state.reconnectAttempts = 0;
         addChatMessage('Система', 'Подключено к серверу синхронизации');
     };
@@ -275,7 +328,6 @@ function wsConnect(roomCode) {
     };
 
     state.ws.onclose = () => {
-        console.log('WebSocket disconnected');
         if (!state.roomCode) return;
         state.reconnectAttempts = (state.reconnectAttempts || 0) + 1;
         const delay = Math.min(1000 * state.reconnectAttempts, 10000);
@@ -296,13 +348,16 @@ function wsSend(data) {
 }
 
 function handleWsMessage(data) {
-    console.log('WS message:', data);
-
     if (data.type === 'state') {
-        // Начальное состояние при подключении
         if (data.current_video_url) {
-            const videoId = extractVideoId(data.current_video_url);
-            if (videoId) createPlayer(videoId);
+            if (data.current_video_url.includes('twitch.tv')) {
+                const channel = data.current_video_url.split('/').pop();
+                els.tabTwitch.style.display = '';
+                createTwitchPlayer(channel);
+            } else {
+                const videoId = extractVideoId(data.current_video_url);
+                if (videoId) createPlayer(videoId);
+            }
         }
         if (data.is_playing && ytPlayer) {
             state.isSyncing = true;
@@ -322,6 +377,18 @@ function handleWsMessage(data) {
         const sender = data.sender || 'Неизвестный';
         addChatMessage(sender, getActionText(data));
 
+        if (data.action === 'set_video') {
+            if (data.url?.includes('twitch.tv')) {
+                const channel = data.url.split('/').pop();
+                els.tabTwitch.style.display = '';
+                createTwitchPlayer(channel);
+            } else if (ytPlayer) {
+                const newVideoId = extractVideoId(data.url);
+                if (newVideoId) createPlayer(newVideoId);
+            }
+            return;
+        }
+
         if (!ytPlayer) return;
 
         state.isSyncing = true;
@@ -336,10 +403,6 @@ function handleWsMessage(data) {
                 break;
             case 'seek':
                 ytPlayer.seekTo(data.timestamp, true);
-                break;
-            case 'set_video':
-                const newVideoId = extractVideoId(data.url);
-                if (newVideoId) createPlayer(newVideoId);
                 break;
         }
         setTimeout(() => { state.isSyncing = false; }, 500);
@@ -370,10 +433,9 @@ function getUserDisplayName() {
 }
 
 // ==========================================
-// ОБРАБОТЧИКИ СОБЫТИЙ
+// EVENT HANDLERS
 // ==========================================
 
-// Кнопка "Присоединиться"
 els.btnJoin.addEventListener('click', () => {
     const code = els.roomCodeInput.value.trim();
     if (!code) {
@@ -383,25 +445,20 @@ els.btnJoin.addEventListener('click', () => {
     enterRoom(code);
 });
 
-// Кнопка "Создать комнату"
 els.btnCreate.addEventListener('click', () => {
-    // Отправляем команду боту через WebApp
     tg?.sendData(JSON.stringify({ action: 'create_room' }));
     tg?.HapticFeedback?.notificationOccurred('success');
 });
 
-// Кнопка "Назад"
 els.btnBack.addEventListener('click', () => {
     if (state.ws) state.ws.close();
     state.roomCode = null;
     showScreen(els.screenLobby);
 });
 
-// Кнопка Play/Pause
 els.btnPlayPause.addEventListener('click', () => {
     if (!state.playerReady) return;
     tg?.HapticFeedback?.impactOccurred('medium');
-
     if (state.isPlaying) {
         pauseVideo();
     } else {
@@ -409,34 +466,29 @@ els.btnPlayPause.addEventListener('click', () => {
     }
 });
 
-// Кнопка перемотки -10 сек
 els.btnSeekBack.addEventListener('click', () => {
     if (!state.playerReady) return;
     tg?.HapticFeedback?.impactOccurred('light');
     seekTo(Math.max(0, getCurrentTime() - 10));
 });
 
-// Кнопка перемотки +10 сек
 els.btnSeekForward.addEventListener('click', () => {
     if (!state.playerReady) return;
     tg?.HapticFeedback?.impactOccurred('light');
     seekTo(getCurrentTime() + 10);
 });
 
-// Кнопка "Добавить видео"
 els.btnAddVideo.addEventListener('click', () => {
     const url = els.videoUrlInput.value.trim();
     if (!url) return;
     tg?.HapticFeedback?.notificationOccurred('success');
 
-    // Отправляем через WebSocket для мгновенной синхронизации
     wsSend({
         action: 'set_video',
         url: url,
         sender: getUserDisplayName(),
     });
 
-    // Также отправляем боту для сохранения в БД
     tg?.sendData(JSON.stringify({
         action: 'add_video',
         room_code: state.roomCode,
@@ -446,22 +498,18 @@ els.btnAddVideo.addEventListener('click', () => {
 
     els.videoUrlInput.value = '';
 
-    // Создаём плеер если ещё нет
     const videoId = extractVideoId(url);
     if (videoId) createPlayer(videoId);
 });
 
-// Enter в поле видео
 els.videoUrlInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') els.btnAddVideo.click();
 });
 
-// Кнопка "Отправить" в чате
 els.btnSendChat.addEventListener('click', () => {
     sendChatMessage();
 });
 
-// Enter в чате
 els.chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendChatMessage();
 });
@@ -482,7 +530,7 @@ function sendChatMessage() {
 }
 
 // ==========================================
-// ВХОД В КОМНАТУ
+// ROOM ENTRY
 // ==========================================
 
 function enterRoom(roomCode) {
@@ -493,7 +541,6 @@ function enterRoom(roomCode) {
     showScreen(els.screenRoom);
     wsConnect(roomCode);
 
-    // Запрашиваем данные о комнате у бота
     tg?.sendData(JSON.stringify({
         action: 'get_room_info',
         room_code: roomCode,
@@ -503,7 +550,7 @@ function enterRoom(roomCode) {
 }
 
 // ==========================================
-// ПАРСИНГ URL ПАРАМЕТРОВ
+// URL PARAMS
 // ==========================================
 
 function initFromUrl() {
@@ -515,17 +562,30 @@ function initFromUrl() {
 }
 
 // ==========================================
-// ИНИЦИАЛИЗАЦИЯ
+// INIT
 // ==========================================
 
 function init() {
     loadYouTubeAPI();
+    loadTwitchAPI();
+    loadSavedTheme();
     initFromUrl();
 
-    // Получаем данные пользователя из Telegram
     if (tg?.initDataUnsafe?.user) {
         state.userInfo = tg.initDataUnsafe.user;
-        console.log('User:', state.userInfo);
+    }
+
+    if (tg?.initDataUnsafe?.user?.id) {
+        state.userTier = tg.initDataUnsafe.user.tier || 'free';
+        if (state.userTier === 'vip') {
+            els.themeModal?.classList.remove('hidden');
+        }
+        if (state.userTier === 'paid' || state.userTier === 'vip') {
+            els.tabUpload.style.display = '';
+        }
+        if (state.userTier === 'vip') {
+            els.tabTwitch.style.display = '';
+        }
     }
 }
 
