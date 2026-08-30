@@ -33,21 +33,21 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
 
     room = Room.get_by_code(code)
     if room is None:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data="menu:main")
-    await message.answer(
-        "❌ Комната не найдена.",
-        reply_markup=builder.as_markup(),
-    )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "❌ Комната не найдена.",
+            reply_markup=builder.as_markup(),
+        )
         return
 
     if not room.is_active:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data="menu:main")
-    await message.answer(
-        "❌ Комната закрыта.",
-        reply_markup=builder.as_markup(),
-    )
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "❌ Комната закрыта.",
+            reply_markup=builder.as_markup(),
+        )
         return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
@@ -58,7 +58,7 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
         )
         return
 
-    builder = types.InlineKeyboardBuilder()
+    builder = InlineKeyboardBuilder()
     builder.button(
         text="🎬 Открыть киновечер",
         web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
