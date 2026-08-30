@@ -128,6 +128,24 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
     await callback.answer()
 
 
+@router.callback_query(F.data.startswith("room:leave:"))
+async def callback_leave_room(callback: types.CallbackQuery) -> None:
+    from models.room import Room
+
+    code = callback.data.split(":", 2)[2]
+    room = Room.get_by_code(code)
+    if room:
+        room.remove_member(callback.from_user.id)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:rooms")
+    await callback.message.edit_text(
+        f"🚪 Ты вышел из комнаты {code}.",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer("Ты вышел из комнаты.", show_alert=True)
+
+
 @router.callback_query(F.data.startswith("room:"))
 async def callback_room(callback: types.CallbackQuery) -> None:
     from models.room import Room
@@ -163,21 +181,3 @@ async def callback_room(callback: types.CallbackQuery) -> None:
         parse_mode="HTML",
     )
     await callback.answer()
-
-
-@router.callback_query(F.data.startswith("room:leave:"))
-async def callback_leave_room(callback: types.CallbackQuery) -> None:
-    from models.room import Room
-
-    code = callback.data.split(":", 2)[2]
-    room = Room.get_by_code(code)
-    if room:
-        room.remove_member(callback.from_user.id)
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data="menu:rooms")
-    await callback.message.edit_text(
-        f"🚪 Ты вышел из комнаты {code}.",
-        reply_markup=builder.as_markup(),
-    )
-    await callback.answer("Ты вышел из комнаты.", show_alert=True)
