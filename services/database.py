@@ -81,4 +81,11 @@ def init_tables(db: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id);
         """
     )
+
+    # Миграции для существующих БД
+    try:
+        db.execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
+    except sqlite3.OperationalError:
+        pass  # колонка уже есть
+
     db.commit()
