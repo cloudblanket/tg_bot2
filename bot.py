@@ -80,10 +80,9 @@ def _run_web_server() -> None:
 if __name__ == "__main__":
     import threading
 
-    # Если установлен RUN_WEB_SERVER=1 — запускаем веб-сервер (Render)
-    # Иначе — только бот (fps.ms)
-    if os.getenv("RUN_WEB_SERVER", "0") == "1":
-        server_thread = threading.Thread(target=_run_web_server, daemon=True)
-        server_thread.start()
+    # Запускаем веб-сервер в отдельном потоке (Render)
+    server_thread = threading.Thread(target=_run_web_server, daemon=True)
+    server_thread.start()
 
+    # Запускаем бота в main thread
     asyncio.run(main())
