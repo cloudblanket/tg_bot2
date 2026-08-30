@@ -56,6 +56,7 @@ const els = {
     btnSendChat: document.getElementById('btn-send-chat'),
     tabTwitch: document.getElementById('tab-twitch'),
     tabUpload: document.getElementById('tab-upload'),
+    btnTheme: document.getElementById('btn-theme'),
     twitchChannelInput: document.getElementById('twitch-channel-input'),
     btnTwitchPlay: document.getElementById('btn-twitch-play'),
     twitchPlayer: document.getElementById('twitch-player'),
@@ -296,6 +297,10 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
 
 els.btnCloseTheme?.addEventListener('click', () => {
     els.themeModal.classList.add('hidden');
+});
+
+els.btnTheme?.addEventListener('click', () => {
+    els.themeModal.classList.remove('hidden');
 });
 
 // ==========================================
@@ -594,7 +599,7 @@ function applyTierFeatures() {
     if (tier === 'vip') {
         els.tabTwitch.style.display = '';
         els.tabUpload.style.display = '';
-        els.themeModal?.classList.remove('hidden');
+        els.btnTheme.style.display = '';
     } else if (tier === 'paid') {
         els.tabUpload.style.display = '';
     }
