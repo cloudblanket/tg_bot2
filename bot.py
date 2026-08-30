@@ -80,9 +80,10 @@ def _run_web_server() -> None:
 if __name__ == "__main__":
     import threading
 
-    # Запускаем веб-сервер в отдельном потоке (Render требует слушать порт)
-    server_thread = threading.Thread(target=_run_web_server, daemon=True)
-    server_thread.start()
+    # Если установлен RUN_WEB_SERVER=1 — запускаем веб-сервер (Render)
+    # Иначе — только бот (fps.ms)
+    if os.getenv("RUN_WEB_SERVER", "0") == "1":
+        server_thread = threading.Thread(target=_run_web_server, daemon=True)
+        server_thread.start()
 
-    # Запускаем бота в main thread (aiogram требует это)
     asyncio.run(main())
