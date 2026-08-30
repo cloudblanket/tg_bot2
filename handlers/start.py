@@ -28,7 +28,7 @@ async def cmd_start(message: types.Message) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(
         text="🎬 Открыть киновечер",
-        web_app=types.WebAppInfo(url=WEBAPP_URL),
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?tier={sub.tier}"),
     )
     builder.adjust(1)
 

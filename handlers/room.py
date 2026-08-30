@@ -38,7 +38,7 @@ async def cmd_create(message: types.Message) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(
         text="🎬 Открыть киновечер",
-        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}"),
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
     )
     builder.adjust(1)
 
@@ -104,7 +104,7 @@ async def _join_room(message: types.Message, code: str, state: FSMContext) -> No
     builder = InlineKeyboardBuilder()
     builder.button(
         text="🎬 Открыть киновечер",
-        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}"),
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
     )
     builder.adjust(1)
 

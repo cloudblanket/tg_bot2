@@ -556,6 +556,11 @@ function enterRoom(roomCode) {
 function initFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const roomCode = params.get('room');
+    const tier = params.get('tier');
+    if (tier) {
+        state.userTier = tier;
+        localStorage.setItem('kinovecher-tier', tier);
+    }
     if (roomCode) {
         enterRoom(roomCode);
     }
@@ -569,23 +574,29 @@ function init() {
     loadYouTubeAPI();
     loadTwitchAPI();
     loadSavedTheme();
+
+    const savedTier = localStorage.getItem('kinovecher-tier');
+    if (savedTier) state.userTier = savedTier;
+
     initFromUrl();
 
     if (tg?.initDataUnsafe?.user) {
         state.userInfo = tg.initDataUnsafe.user;
     }
 
-    if (tg?.initDataUnsafe?.user?.id) {
-        state.userTier = tg.initDataUnsafe.user.tier || 'free';
-        if (state.userTier === 'vip') {
-            els.themeModal?.classList.remove('hidden');
-        }
-        if (state.userTier === 'paid' || state.userTier === 'vip') {
-            els.tabUpload.style.display = '';
-        }
-        if (state.userTier === 'vip') {
-            els.tabTwitch.style.display = '';
-        }
+    applyTierFeatures();
+}
+
+function applyTierFeatures() {
+    const tier = state.userTier;
+    console.log('User tier:', tier);
+
+    if (tier === 'vip') {
+        els.tabTwitch.style.display = '';
+        els.tabUpload.style.display = '';
+        els.themeModal?.classList.remove('hidden');
+    } else if (tier === 'paid') {
+        els.tabUpload.style.display = '';
     }
 }
 
