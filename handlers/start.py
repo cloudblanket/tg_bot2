@@ -99,17 +99,6 @@ async def callback_create(callback: types.CallbackQuery) -> None:
     await callback.answer()
 
 
-@router.callback_query(F.data == "menu:join")
-async def callback_join(callback: types.CallbackQuery) -> None:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data="menu:main")
-    await callback.message.edit_text(
-        "🔑 Введи код комнаты:",
-        reply_markup=builder.as_markup(),
-    )
-    await callback.answer()
-
-
 @router.callback_query(F.data == "menu:rooms")
 async def callback_rooms(callback: types.CallbackQuery) -> None:
     from models.room import Room
