@@ -235,27 +235,43 @@ setInterval(updateTimeDisplay, 1000);
 let twitchPlayerInstance = null;
 
 function loadTwitchAPI() {
-    const tag = document.createElement('script');
-    tag.src = 'https://player.twitch.tv/js/embed/v1.js';
-    const firstScriptTag = document.getElementsByTagName('script')[0];
-    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    try {
+        const tag = document.createElement('script');
+        tag.src = 'https://player.twitch.tv/js/embed/v1.js';
+        tag.onerror = () => console.warn('Twitch API failed to load');
+        const firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    } catch(e) {
+        console.warn('Twitch API load error:', e);
+    }
 }
 
 function createTwitchPlayer(channel) {
+    if (typeof Twitch === 'undefined') {
+        els.twitchPlayerPlaceholder.innerHTML = '<span>🔴</span><p>Twitch API не загрузился. Проверь соединение.</p>';
+        return;
+    }
+
     if (twitchPlayerInstance) {
-        twitchPlayerInstance.setChannel(channel);
+        try { twitchPlayerInstance.setChannel(channel); } catch(e) {}
         return;
     }
 
     els.twitchPlayerPlaceholder.classList.add('hidden');
 
-    twitchPlayerInstance = new Twitch.Player('twitch-player', {
-        channel: channel,
-        width: '100%',
-        height: '100%',
-        autoplay: false,
-        muted: false,
-    });
+    try {
+        twitchPlayerInstance = new Twitch.Player('twitch-player', {
+            channel: channel,
+            width: '100%',
+            height: '100%',
+            autoplay: false,
+            muted: false,
+        });
+    } catch(e) {
+        console.error('Twitch player error:', e);
+        els.twitchPlayerPlaceholder.classList.remove('hidden');
+        els.twitchPlayerPlaceholder.innerHTML = '<span>🔴</span><p>Ошибка запуска Twitch</p>';
+    }
 }
 
 els.btnTwitchPlay?.addEventListener('click', () => {

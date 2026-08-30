@@ -27,6 +27,7 @@ body {
     color: var(--text-primary);
     min-height: 100vh;
     overflow-x: hidden;
+    overscroll-behavior: none;
 }
 
 #app {
@@ -511,11 +512,22 @@ input[type="text"]::placeholder {
     border-radius: var(--radius);
     overflow: hidden;
     margin-bottom: 12px;
+    position: relative;
 }
 
 #twitch-player {
     width: 100%;
     height: 100%;
+    position: relative;
+}
+
+#twitch-player iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
 }
 
 /* Upload Section */
