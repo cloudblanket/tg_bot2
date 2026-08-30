@@ -16,20 +16,17 @@ logger = logging.getLogger(__name__)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 
-@router.message(Command("subscribe"))
-async def cmd_subscribe(message: types.Message) -> None:
-    user = User.get_by_telegram_id(message.from_user.id)
-    if user is None:
-        user = User(
-            telegram_id=message.from_user.id,
-            username=message.from_user.username,
-            first_name=message.from_user.first_name,
-        )
-        user.save()
+def back_button(callback_data: str = "menu:main") -> types.InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data=callback_data)
+    return builder.as_markup()
 
-    sub = Subscription.get_by_telegram_id(message.from_user.id)
 
-    lines = [f"💳 Твой текущий тариф: <b>{sub.tier.upper()}</b>\n"]
+@router.callback_query(F.data == "menu:subscribe")
+async def callback_subscribe_menu(callback: types.CallbackQuery) -> None:
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+
+    lines = [f"💳 Твой тариф: <b>{sub.tier.upper()}</b>\n"]
 
     for key, tier in TIERS.items():
         current = " ← текущий" if key == sub.tier else ""
@@ -37,25 +34,25 @@ async def cmd_subscribe(message: types.Message) -> None:
         price_str = "бесплатно" if price == 0 else f"⭐ {price}"
         lines.append(
             f"\n<b>{tier['name']}</b> — {price_str}{current}\n"
-            f"  👥 До {tier['max_members']} человек\n"
-            f"  🎬 Источники: {', '.join(tier['features'])}"
+            f"  👥 До {tier['max_members']} чел.\n"
+            f"  🎬 {', '.join(tier['features'])}"
         )
 
     builder = InlineKeyboardBuilder()
 
     if sub.tier != "paid":
-        builder.button(
-            text="💎 Paid — ⭐ 399",
-            callback_data="subscribe:paid",
-        )
+        builder.button(text="💎 Paid — ⭐ 399", callback_data="subscribe:paid")
     if sub.tier != "vip":
-        builder.button(
-            text="👑 VIP — ⭐ 999",
-            callback_data="subscribe:vip",
-        )
+        builder.button(text="👑 VIP — ⭐ 999", callback_data="subscribe:vip")
+    builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    await message.answer("\n".join(lines), reply_markup=builder.as_markup(), parse_mode="HTML")
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("subscribe:"))
@@ -112,13 +109,41 @@ async def successful_payment(message: types.Message) -> None:
                 user.tier = tier
                 user.save()
 
+            builder = InlineKeyboardBuilder()
+            builder.button(text="🎬 Меню", callback_data="menu:main")
+
             await message.answer(
                 f"✅ Подписка <b>{TIERS[tier]['name']}</b> активирована!\n\n"
-                f"👥 До {TIERS[tier]['max_members']} человек\n"
+                f"👥 До {TIERS[tier]['max_members']} чел.\n"
                 f"🎬 {', '.join(TIERS[tier]['features'])}\n"
-                f"⏰ Действует 30 дней",
+                f"⏰ 30 дней",
+                reply_markup=builder.as_markup(),
                 parse_mode="HTML",
             )
+
+
+@router.callback_query(F.data == "menu:profile")
+async def callback_profile(callback: types.CallbackQuery) -> None:
+    user = User.get_by_telegram_id(callback.from_user.id)
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+
+    name = user.first_name or user.username or "Аноним"
+    tier = sub.tier.upper()
+    features = ", ".join(sub.features)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+
+    await callback.message.edit_text(
+        f"👤 <b>Профиль</b>\n\n"
+        f"Имя: {name}\n"
+        f"ID: <code>{callback.from_user.id}</code>\n"
+        f"💳 Тариф: <b>{tier}</b>\n"
+        f"🎬 Функции: {features}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
 
 
 @router.message(Command("vip"))
