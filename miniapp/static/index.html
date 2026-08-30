@@ -5,32 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Киновечер</title>
     <link rel="stylesheet" href="/static/style.css">
-    <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div id="app">
-        <!-- Экран выбора комнаты -->
+        <!-- Лобби -->
         <div id="screen-lobby" class="screen active">
             <div class="header">
                 <h1>🎬 Киновечер</h1>
                 <p class="subtitle">Смотри видео вместе с друзьями</p>
             </div>
-
             <div class="lobby-content">
                 <div class="input-group">
                     <label for="room-code-input">Код комнаты</label>
                     <input type="text" id="room-code-input" placeholder="Введи код комнаты..." maxlength="10">
                 </div>
                 <button id="btn-join" class="btn btn-primary">Присоединиться</button>
-
                 <div class="divider"><span>или</span></div>
-
                 <button id="btn-create" class="btn btn-secondary">Создать новую комнату</button>
             </div>
         </div>
 
-        <!-- Экран комнаты -->
+        <!-- Комната -->
         <div id="screen-room" class="screen">
             <div class="room-header">
                 <button id="btn-back" class="btn-icon">←</button>
@@ -49,7 +45,7 @@
                 <button class="tab" data-tab="upload" id="tab-upload" style="display:none">📤 Загрузка</button>
             </div>
 
-            <!-- YouTube плеер -->
+            <!-- YouTube -->
             <div id="tab-content-youtube" class="tab-content active">
                 <div id="player-container">
                     <div id="player-placeholder" class="player-placeholder">
@@ -57,26 +53,24 @@
                         <p>Добавь видео, чтобы начать</p>
                     </div>
                     <div id="player"></div>
+                    <button id="btn-fullscreen" class="btn-fullscreen" title="Кинотеатр">⛶</button>
                 </div>
-
                 <div id="controls" class="controls hidden">
                     <button id="btn-seek-back" class="btn-control" title="−10 сек">⏪</button>
                     <button id="btn-play-pause" class="btn-control btn-main" title="Play/Pause">▶️</button>
                     <button id="btn-seek-forward" class="btn-control" title="+10 сек">⏩</button>
                     <span id="current-time" class="time-display">0:00</span>
                 </div>
-
                 <div class="add-video-section">
                     <div class="input-group row">
                         <input type="text" id="video-url-input" placeholder="Ссылка на YouTube..." flex="1">
                         <button id="btn-add-video" class="btn btn-primary btn-sm">+</button>
                     </div>
                 </div>
-
                 <div id="video-list" class="video-list"></div>
             </div>
 
-            <!-- Twitch плеер -->
+            <!-- Twitch -->
             <div id="tab-content-twitch" class="tab-content">
                 <div class="add-video-section">
                     <div class="input-group row">
@@ -90,10 +84,11 @@
                         <p>Введи название канала Twitch</p>
                     </div>
                     <div id="twitch-player"></div>
+                    <button id="btn-twitch-fullscreen" class="btn-fullscreen" title="Кинотеатр">⛶</button>
                 </div>
             </div>
 
-            <!-- Загрузка видео -->
+            <!-- Загрузка -->
             <div id="tab-content-upload" class="tab-content">
                 <div class="upload-section">
                     <p>📤 Отправь видео боту в Telegram (/upload), и оно появится здесь.</p>
@@ -109,6 +104,10 @@
 
             <!-- Чат -->
             <div class="chat-section">
+                <div class="chat-header-row">
+                    <h3>💬 Чат</h3>
+                    <button id="btn-chat-mode" class="btn-icon" title="Режим чата">💬</button>
+                </div>
                 <div id="chat-messages" class="chat-messages"></div>
                 <div class="chat-input-row">
                     <input type="text" id="chat-input" placeholder="Сообщение..." maxlength="500">
@@ -117,7 +116,37 @@
             </div>
         </div>
 
-        <!-- Настройки темы (VIP) -->
+        <!-- Режим кинотеатра (fullscreen) -->
+        <div id="screen-theater" class="screen theater-mode">
+            <div class="theater-header">
+                <button id="btn-exit-theater" class="btn-icon">✕</button>
+                <span id="theater-title" class="theater-title">Кинотеатр</span>
+            </div>
+            <div id="theater-player-container">
+                <div id="theater-player"></div>
+            </div>
+            <div id="theater-controls" class="controls">
+                <button id="theater-seek-back" class="btn-control" title="−10 сек">⏪</button>
+                <button id="theater-play-pause" class="btn-control btn-main" title="Play/Pause">▶️</button>
+                <button id="theater-seek-forward" class="btn-control" title="+10 сек">⏩</button>
+                <span id="theater-time" class="time-display">0:00</span>
+            </div>
+        </div>
+
+        <!-- Режим чата (Twitch-style) -->
+        <div id="screen-chat" class="screen chat-mode">
+            <div class="chat-mode-header">
+                <button id="btn-exit-chat" class="btn-icon">✕</button>
+                <span>💬 Чат комнаты</span>
+            </div>
+            <div id="chat-mode-messages" class="chat-mode-messages"></div>
+            <div class="chat-mode-input">
+                <input type="text" id="chat-mode-input" placeholder="Сообщение..." maxlength="500">
+                <button id="btn-chat-mode-send" class="btn btn-primary btn-sm">→</button>
+            </div>
+        </div>
+
+        <!-- Модалка тем -->
         <div id="theme-modal" class="modal hidden">
             <div class="modal-content">
                 <h3>🎨 Выбери тему</h3>
