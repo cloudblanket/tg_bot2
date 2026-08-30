@@ -153,7 +153,7 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "miniapp" / "static"
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "data" / "uploads"
 
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), cache_max_age=3600), name="static")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.get("/")
     async def index():
