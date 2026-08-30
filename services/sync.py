@@ -10,55 +10,75 @@ from typing import Any, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from starlette.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Cinema Night Sync Server")
+app = FastAPI(title="Cinema Night", docs_url=None, redoc_url=None, openapi_url=None)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 start_time = time.time()
+
+MAX_CONNECTIONS_PER_ROOM = 50
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "uptime": int(time.time() - start_time)}
+    total = sum(len(r.connections) for r in room_states.values())
+    rooms = len(room_states)
+    return {"status": "ok", "uptime": int(time.time() - start_time), "rooms": rooms, "connections": total}
 
 
 @dataclass
 class RoomState:
-    """Состояние комнаты для синхронизации видео."""
     current_video_url: str = ""
     is_playing: bool = False
     timestamp: float = 0.0
     last_updated: float = 0.0
     connections: list[WebSocket] = field(default_factory=list)
+    _json_cache: dict[str, str] = field(default_factory=dict, repr=False)
 
 
-# Хранилище состояний комнат
 room_states: dict[str, RoomState] = {}
 
 
+def _json_dumps(msg: dict[str, Any]) -> str:
+    return json.dumps(msg, separators=(",", ":"))
+
+
 async def broadcast_to_room(room_code: str, message: dict[str, Any], exclude: Optional[WebSocket] = None) -> None:
-    """Отправить сообщение всем подключённым клиентам в комнате."""
-    if room_code not in room_states:
+    room = room_states.get(room_code)
+    if not room:
         return
 
-    room = room_states[room_code]
-    dead: list[WebSocket] = []
+    payload = _json_dumps(message)
+    dead: list[int] = []
 
-    for ws in room.connections:
+    for i, ws in enumerate(room.connections):
         if ws is exclude:
             continue
         try:
-            await ws.send_json(message)
+            await ws.send_text(payload)
         except Exception:
-            dead.append(ws)
+            dead.append(i)
 
-    for ws in dead:
-        room.connections.remove(ws)
+    for i in reversed(dead):
+        room.connections.pop(i, None)
 
 
 @app.websocket("/ws/{room_code}")
 async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
+    room = room_states.get(room_code)
+    if room and len(room.connections) >= MAX_CONNECTIONS_PER_ROOM:
+        await websocket.close(code=1013, reason="Room full")
+        return
+
     await websocket.accept()
 
     if room_code not in room_states:
@@ -67,15 +87,14 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
     room = room_states[room_code]
     room.connections.append(websocket)
 
-    logger.info("Client connected to room %s (total: %d)", room_code, len(room.connections))
+    logger.info("WS connect room=%s total=%d", room_code, len(room.connections))
 
-    # Отправляем текущее состояние при подключении
-    await websocket.send_json({
+    await websocket.send_text(_json_dumps({
         "type": "state",
         "is_playing": room.is_playing,
         "timestamp": room.timestamp,
         "current_video_url": room.current_video_url,
-    })
+    }))
 
     try:
         while True:
@@ -86,77 +105,58 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
                 continue
 
             action = data.get("action")
-            logger.info("Room %s: action=%s", room_code, action)
+            ts = data.get("timestamp", room.timestamp)
+            sender = data.get("sender", "")
 
             if action == "play":
                 room.is_playing = True
-                room.timestamp = data.get("timestamp", room.timestamp)
-                await broadcast_to_room(room_code, {
-                    "type": "command",
-                    "action": "play",
-                    "timestamp": room.timestamp,
-                    "sender": data.get("sender", ""),
-                }, exclude=websocket)
-
+                room.timestamp = ts
             elif action == "pause":
                 room.is_playing = False
-                room.timestamp = data.get("timestamp", room.timestamp)
-                await broadcast_to_room(room_code, {
-                    "type": "command",
-                    "action": "pause",
-                    "timestamp": room.timestamp,
-                    "sender": data.get("sender", ""),
-                }, exclude=websocket)
-
+                room.timestamp = ts
             elif action == "seek":
-                room.timestamp = data.get("timestamp", room.timestamp)
-                await broadcast_to_room(room_code, {
-                    "type": "command",
-                    "action": "seek",
-                    "timestamp": room.timestamp,
-                    "sender": data.get("sender", ""),
-                }, exclude=websocket)
-
+                room.timestamp = ts
             elif action == "set_video":
                 room.current_video_url = data.get("url", "")
                 room.timestamp = 0
                 room.is_playing = False
-                await broadcast_to_room(room_code, {
-                    "type": "command",
-                    "action": "set_video",
-                    "url": room.current_video_url,
-                    "sender": data.get("sender", ""),
-                }, exclude=websocket)
-
+                ts = 0
             elif action == "chat":
-                await broadcast_to_room(room_code, {
-                    "type": "chat",
-                    "text": data.get("text", ""),
-                    "sender": data.get("sender", ""),
-                    "sender_id": data.get("sender_id", 0),
-                }, exclude=websocket)
+                pass
+            else:
+                continue
+
+            if action == "chat":
+                msg = {"type": "chat", "text": data.get("text", ""), "sender": sender, "sender_id": data.get("sender_id", 0)}
+            else:
+                msg = {"type": "command", "action": action, "timestamp": ts, "sender": sender}
+                if action == "set_video":
+                    msg["url"] = room.current_video_url
+
+            await broadcast_to_room(room_code, msg, exclude=websocket)
 
     except WebSocketDisconnect:
-        room.connections.remove(websocket)
-        logger.info("Client disconnected from room %s (total: %d)", room_code, len(room.connections))
+        pass
+    except Exception as e:
+        logger.warning("WS error room=%s: %s", room_code, e)
+    finally:
+        if websocket in room.connections:
+            room.connections.remove(websocket)
+        logger.info("WS disconnect room=%s total=%d", room_code, len(room.connections))
 
-        if not room.connections:
-            # Не удаляем состояние сразу, чтобы переподключение было возможным
-            logger.info("Room %s is now empty", room_code)
 
-
-# Статические файлы Mini App
+# Статические файлы
 import os
 from pathlib import Path
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "miniapp" / "static"
 
 if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    app.mount("/static", StaticFiles(directory=str(STATIC_DIR), cache_max_age=3600), name="static")
 
     @app.get("/")
     async def index():
-        return FileResponse(str(STATIC_DIR / "index.html"))
+        return FileResponse(str(STATIC_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
 
 
 if __name__ == "__main__":

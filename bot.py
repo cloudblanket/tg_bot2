@@ -11,7 +11,6 @@ load_dotenv(Path(__file__).parent / ".env")
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
-from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
@@ -32,11 +31,12 @@ logger = logging.getLogger(__name__)
 
 def create_bot() -> Bot:
     if not BOT_TOKEN:
-        logger.error("BOT_TOKEN environment variable is not set!")
+        logger.error("BOT_TOKEN not set!")
         sys.exit(1)
 
     session = None
     if PROXY_URL:
+        from aiogram.client.session.aiohttp import AiohttpSession
         logger.info("Using proxy: %s", PROXY_URL)
         session = AiohttpSession(proxy=PROXY_URL)
 
@@ -49,23 +49,16 @@ def create_bot() -> Bot:
 
 async def main() -> None:
     bot = create_bot()
-    storage = MemoryStorage()
-    dp = Dispatcher(storage=storage)
+    dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_router(start_router)
     dp.include_router(room_router)
     dp.include_router(webapp_router)
 
-    logger.info("Bot starting...")
-
     me = await bot.get_me()
-    logger.info("Bot connected: @%s (ID: %s)", me.username, me.id)
+    logger.info("Bot: @%s (ID: %s)", me.username, me.id)
 
     await dp.start_polling(bot)
-
-
-def run_bot_async() -> None:
-    asyncio.run(main())
 
 
 def _run_web_server() -> None:
@@ -73,16 +66,14 @@ def _run_web_server() -> None:
     import uvicorn
 
     port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
-    logger.info("Web server starting on port %d", port)
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    logger.info("Web server on port %d", port)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
 
 
 if __name__ == "__main__":
     import threading
 
-    # Запускаем веб-сервер в отдельном потоке (Render)
     server_thread = threading.Thread(target=_run_web_server, daemon=True)
     server_thread.start()
 
-    # Запускаем бота в main thread
     asyncio.run(main())

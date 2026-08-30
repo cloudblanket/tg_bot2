@@ -15,6 +15,9 @@ def get_db() -> sqlite3.Connection:
         _connection = sqlite3.connect(_DB_PATH, check_same_thread=False)
         _connection.row_factory = sqlite3.Row
         _connection.execute("PRAGMA journal_mode=WAL")
+        _connection.execute("PRAGMA synchronous=NORMAL")
+        _connection.execute("PRAGMA cache_size=-8000")
+        _connection.execute("PRAGMA temp_store=MEMORY")
         _connection.execute("PRAGMA foreign_keys=ON")
         init_tables(_connection)
     return _connection
@@ -59,6 +62,11 @@ def init_tables(db: sqlite3.Connection) -> None:
             added_at TEXT,
             FOREIGN KEY (room_id) REFERENCES rooms(id)
         );
+
+        CREATE INDEX IF NOT EXISTS idx_room_members_telegram ON room_members(telegram_id);
+        CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id);
+        CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code);
+        CREATE INDEX IF NOT EXISTS idx_videos_room ON videos(room_id);
         """
     )
     db.commit()
