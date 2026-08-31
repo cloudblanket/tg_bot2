@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from aiogram import Router, types, F
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
@@ -239,3 +239,40 @@ async def callback_help(callback: types.CallbackQuery) -> None:
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.message(Command("stats"))
+async def cmd_stats(message: types.Message) -> None:
+    import os as _os
+    _admin_raw = _os.getenv("ADMIN_ID")
+    _admin_id = int(_admin_raw) if _admin_raw else None
+    if _admin_id is None or message.from_user.id != _admin_id:
+        await message.answer("❌ Нет доступа.")
+        return
+
+    from services.database import get_db
+    from services.sync import room_states
+
+    db = get_db()
+    total_users = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+    total_rooms = db.execute("SELECT COUNT(*) FROM rooms WHERE is_active = 1").fetchone()[0]
+    total_subs = db.execute("SELECT COUNT(*) FROM subscriptions WHERE tier != 'free'").fetchone()[0]
+
+    tier_stats = db.execute(
+        "SELECT tier, COUNT(*) FROM subscriptions GROUP BY tier"
+    ).fetchall()
+
+    active_connections = sum(len(rs.connections) for rs in room_states.values())
+
+    lines = [
+        "📊 <b>Статистика бота</b>\n",
+        f"👤 Пользователей: <b>{total_users}</b>",
+        f"🚪 Активных комнат: <b>{total_rooms}</b>",
+        f"🟢 WebSocket подключений: <b>{active_connections}</b>",
+        f"💳 Платящих подписчиков: <b>{total_subs}</b>\n",
+        "📦 <b>По тарифам:</b>",
+    ]
+    for tier, count in tier_stats:
+        lines.append(f"  • {tier.upper()}: {count}")
+
+    await message.answer("\n".join(lines), parse_mode="HTML")
