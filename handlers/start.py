@@ -10,7 +10,7 @@ from models.subscription import Subscription, TIERS
 
 router = Router(name="start")
 
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.com")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
 
 
 def main_menu_keyboard() -> types.InlineKeyboardMarkup:

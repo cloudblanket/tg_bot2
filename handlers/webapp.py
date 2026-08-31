@@ -74,40 +74,16 @@ async def _handle_add_video(message: types.Message, data: dict[str, Any], room: 
 
 
 async def _handle_play(message: types.Message, data: dict[str, Any], room: Room) -> None:
-    timestamp = data.get("timestamp", 0)
-    await message.answer(
-        f"▶️ {message.from_user.first_name} нажал Play (таймкод: {int(timestamp)}с)"
-    )
+    pass
 
 
 async def _handle_pause(message: types.Message, data: dict[str, Any], room: Room) -> None:
-    timestamp = data.get("timestamp", 0)
-    await message.answer(
-        f"⏸ {message.from_user.first_name} нажал Pause (таймкод: {int(timestamp)}с)"
-    )
+    pass
 
 
 async def _handle_seek(message: types.Message, data: dict[str, Any], room: Room) -> None:
-    timestamp = data.get("timestamp", 0)
-    await message.answer(
-        f"⏩ {message.from_user.first_name} перемотал на {int(timestamp)}с"
-    )
+    pass
 
 
 async def _handle_chat(message: types.Message, data: dict[str, Any], room: Room) -> None:
-    text = data.get("text", "").strip()
-    if not text:
-        return
-
-    members = room.get_members()
-    for member in members:
-        if member["telegram_id"] != message.from_user.id:
-            try:
-                await message.bot.send_message(
-                    chat_id=member["telegram_id"],
-                    text=f"💬 {message.from_user.first_name}: {text}",
-                )
-            except Exception as e:
-                logger.warning("Failed to send chat to %s: %s", member["telegram_id"], e)
-
-    await message.answer(f"💬 Сообщение отправлено ({len(members) - 1} участникам)")
+    pass

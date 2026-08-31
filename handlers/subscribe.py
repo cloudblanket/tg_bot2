@@ -13,7 +13,8 @@ from models.subscription import Subscription, TIERS
 router = Router(name="subscribe")
 logger = logging.getLogger(__name__)
 
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+_admin_raw = os.getenv("ADMIN_ID")
+ADMIN_ID = int(_admin_raw) if _admin_raw else None
 
 
 def back_button(callback_data: str = "menu:main") -> types.InlineKeyboardMarkup:
@@ -148,7 +149,7 @@ async def callback_profile(callback: types.CallbackQuery) -> None:
 
 @router.message(Command("vip"))
 async def cmd_vip(message: types.Message) -> None:
-    if ADMIN_ID and message.from_user.id != ADMIN_ID:
+    if ADMIN_ID is None or message.from_user.id != ADMIN_ID:
         await message.answer("❌ Нет доступа.")
         return
 

@@ -18,20 +18,18 @@ class User:
 
     def save(self) -> None:
         db = get_db()
-        cursor = db.execute(
-            """
-            INSERT INTO users (telegram_id, username, first_name, is_premium, tier)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET
-                username = excluded.username,
-                first_name = excluded.first_name,
-                is_premium = excluded.is_premium,
-                tier = excluded.tier
-            """,
-            (self.telegram_id, self.username, self.first_name, self.is_premium, self.tier),
-        )
+        existing = self.get_by_telegram_id(self.telegram_id)
+        if existing:
+            db.execute(
+                "UPDATE users SET username = ?, first_name = ?, is_premium = ? WHERE telegram_id = ?",
+                (self.username, self.first_name, self.is_premium, self.telegram_id),
+            )
+        else:
+            db.execute(
+                "INSERT INTO users (telegram_id, username, first_name, is_premium, tier) VALUES (?, ?, ?, ?, ?)",
+                (self.telegram_id, self.username, self.first_name, self.is_premium, self.tier),
+            )
         db.commit()
-        self.id = cursor.lastrowid
 
     @classmethod
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[User]:

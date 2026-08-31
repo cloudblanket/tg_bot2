@@ -12,7 +12,7 @@ from models.subscription import Subscription
 
 router = Router(name="room")
 
-WEBAPP_URL = os.getenv("WEBAPP_URL", "https://your-domain.com")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
 
 
 class JoinState(StatesGroup):
@@ -53,8 +53,13 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     sub = Subscription.get_by_telegram_id(message.from_user.id)
 
     if not room.add_member(message.from_user.id):
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💳 Подписка", callback_data="menu:subscribe")
+        builder.button(text="← Назад", callback_data="menu:main")
+        builder.adjust(1)
         await message.answer(
-            f"⚠️ Комната заполнена (макс. {sub.max_members}). /subscribe"
+            f"⚠️ Комната заполнена (макс. {sub.max_members} участников).",
+            reply_markup=builder.as_markup(),
         )
         return
 

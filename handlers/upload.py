@@ -48,6 +48,7 @@ async def cmd_upload(message: types.Message) -> None:
 async def handle_video_upload(message: types.Message) -> None:
     user = User.get_by_telegram_id(message.from_user.id)
     if user is None:
+        await message.answer("❌ Сначала нажми /start")
         return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
@@ -71,12 +72,12 @@ async def handle_video_upload(message: types.Message) -> None:
     file = await message.bot.get_file(video.file_id)
     await message.bot.download_file(file.file_path, str(UPLOAD_DIR / file_name))
 
-    webapp_url = os.getenv("WEBAPP_URL", "https://your-domain.com")
+    webapp_url = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
     view_url = f"{webapp_url}/view/{file_name}"
 
     await message.answer(
         f"✅ Видео загружено!\n\n"
         f"🔗 Ссылка для просмотра (1 раз):\n<code>{view_url}</code>\n\n"
-        f"⚠️ Ссылка действительна 24 часа.",
+        f"⚠️ Видео удалится сразу после просмотра.",
         parse_mode="HTML",
     )
