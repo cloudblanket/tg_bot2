@@ -107,8 +107,7 @@ async def successful_payment(message: types.Message) -> None:
 
             user = User.get_by_telegram_id(telegram_id)
             if user:
-                user.tier = tier
-                user.save()
+                user.set_tier(tier)
 
             builder = InlineKeyboardBuilder()
             builder.button(text="🎬 Меню", callback_data="menu:main")
@@ -172,7 +171,6 @@ async def cmd_vip(message: types.Message) -> None:
 
     user = User.get_by_telegram_id(telegram_id)
     if user:
-        user.tier = "vip"
-        user.save()
+        user.set_tier("vip")
 
     await message.answer(f"✅ VIP активирован для {telegram_id}")

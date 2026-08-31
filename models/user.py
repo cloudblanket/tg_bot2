@@ -31,6 +31,12 @@ class User:
             )
         db.commit()
 
+    def set_tier(self, tier: str) -> None:
+        self.tier = tier
+        db = get_db()
+        db.execute("UPDATE users SET tier = ? WHERE telegram_id = ?", (tier, self.telegram_id))
+        db.commit()
+
     @classmethod
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[User]:
         db = get_db()
