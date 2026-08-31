@@ -40,8 +40,32 @@ async def cmd_start(message: types.Message) -> None:
     )
     user.save()
 
-    sub = Subscription.get_by_telegram_id(message.from_user.id)
+    args = message.text.split(maxsplit=1)
+    if len(args) > 1 and args[1].startswith("join_"):
+        room_code = args[1][5:]
+        from models.room import Room
+        room = Room.get_by_code(room_code)
+        if room and room.is_active:
+            sub = Subscription.get_by_telegram_id(message.from_user.id)
+            if room.add_member(message.from_user.id):
+                builder = InlineKeyboardBuilder()
+                builder.button(
+                    text="🎬 Открыть киновечер",
+                    web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+                )
+                builder.button(text="← Назад", callback_data="menu:main")
+                builder.adjust(1)
+                await message.answer(
+                    f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
+                return
+            else:
+                await message.answer("⚠️ Комната заполнена.")
+                return
 
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
     await message.answer(
         f"👋 Привет, {message.from_user.first_name}!\n\n"
         f"Я — бот для совместного просмотра видео.\n"
@@ -87,7 +111,7 @@ async def callback_create(callback: types.CallbackQuery) -> None:
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    bot_username = (await callback.bot.me()).username
+    bot_username = callback.bot.me.username
 
     await callback.message.edit_text(
         f"🎉 Комната создана!\n\n"

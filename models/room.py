@@ -114,11 +114,8 @@ class Room:
 
     def can_add_member(self, telegram_id: int = 0) -> bool:
         count = self.member_count()
-        if telegram_id:
-            sub = Subscription.get_by_telegram_id(telegram_id)
-            limit = sub.max_members
-        else:
-            limit = 5
+        creator_sub = Subscription.get_by_telegram_id(self.creator_id)
+        limit = creator_sub.max_members
         return count < limit
 
     def add_member(self, telegram_id: int) -> bool:

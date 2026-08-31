@@ -21,8 +21,8 @@ class User:
         existing = self.get_by_telegram_id(self.telegram_id)
         if existing:
             db.execute(
-                "UPDATE users SET username = ?, first_name = ?, is_premium = ? WHERE telegram_id = ?",
-                (self.username, self.first_name, self.is_premium, self.telegram_id),
+                "UPDATE users SET username = ?, first_name = ? WHERE telegram_id = ?",
+                (self.username, self.first_name, self.telegram_id),
             )
         else:
             db.execute(

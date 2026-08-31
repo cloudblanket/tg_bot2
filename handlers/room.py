@@ -53,12 +53,13 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     sub = Subscription.get_by_telegram_id(message.from_user.id)
 
     if not room.add_member(message.from_user.id):
+        creator_sub = Subscription.get_by_telegram_id(room.creator_id)
         builder = InlineKeyboardBuilder()
         builder.button(text="💳 Подписка", callback_data="menu:subscribe")
         builder.button(text="← Назад", callback_data="menu:main")
         builder.adjust(1)
         await message.answer(
-            f"⚠️ Комната заполнена (макс. {sub.max_members} участников).",
+            f"⚠️ Комната заполнена (макс. {creator_sub.max_members} участников).",
             reply_markup=builder.as_markup(),
         )
         return
