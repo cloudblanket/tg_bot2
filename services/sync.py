@@ -359,12 +359,6 @@ async def api_save_personalization(user_id: int, data: dict):
         )
     db.commit()
     return {"status": "ok"}
-            data.get("accent_color", ""),
-            data.get("border_radius", ""),
-        ),
-    )
-    db.commit()
-    return {"status": "ok"}
 
 
 # Статические файлы
