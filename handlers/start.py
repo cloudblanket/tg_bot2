@@ -619,8 +619,13 @@ async def callback_help(callback: types.CallbackQuery) -> None:
     await callback.answer()
 
 
+_last_stats_message_id: int | None = None
+
+
 @router.message(Command("stats"))
 async def cmd_stats(message: types.Message) -> None:
+    global _last_stats_message_id
+
     import os as _os
     _admin_raw = _os.getenv("ADMIN_ID")
     _admin_id = int(_admin_raw) if _admin_raw else None
@@ -653,4 +658,21 @@ async def cmd_stats(message: types.Message) -> None:
     for tier, count in tier_stats:
         lines.append(f"  • {tier.upper()}: {count}")
 
-    await message.answer("\n".join(lines), parse_mode="HTML")
+    text = "\n".join(lines)
+
+    if _last_stats_message_id:
+        try:
+            await message.bot.edit_message_text(
+                text=text,
+                chat_id=message.chat.id,
+                message_id=_last_stats_message_id,
+                parse_mode="HTML",
+            )
+            await message.delete()
+            return
+        except Exception:
+            pass
+
+    msg = await message.answer(text, parse_mode="HTML")
+    _last_stats_message_id = msg.message_id
+    await message.delete()
