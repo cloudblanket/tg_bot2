@@ -205,7 +205,62 @@
                     <button class="theme-btn" data-theme="neon">💚 Неон</button>
                     <button class="theme-btn" data-theme="space">🌌 Космос</button>
                 </div>
+                <button id="btn-personalize" class="btn btn-secondary" style="display:none">⚙️ Персонализация</button>
                 <button id="btn-close-theme" class="btn btn-secondary">Закрыть</button>
+            </div>
+        </div>
+
+        <!-- Модалка персонализации (VIP) -->
+        <div id="personalize-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>⚙️ Персонализация</h3>
+
+                <div class="personalize-section">
+                    <label>Шрифт</label>
+                    <div class="font-grid">
+                        <button class="font-btn" data-font="default">По умолчанию</button>
+                        <button class="font-btn" data-font="serif">Serif</button>
+                        <button class="font-btn" data-font="mono">Mono</button>
+                        <button class="font-btn" data-font="cursive">Cursive</button>
+                    </div>
+                </div>
+
+                <div class="personalize-section">
+                    <label>Цвет фона</label>
+                    <div class="color-grid">
+                        <button class="color-btn" data-bg="#0f0f23" style="background:#0f0f23"></button>
+                        <button class="color-btn" data-bg="#1a1a2e" style="background:#1a1a2e"></button>
+                        <button class="color-btn" data-bg="#0d1117" style="background:#0d1117"></button>
+                        <button class="color-btn" data-bg="#1e1e2e" style="background:#1e1e2e"></button>
+                        <button class="color-btn" data-bg="#2d1b3d" style="background:#2d1b3d"></button>
+                        <button class="color-btn" data-bg="#1a2332" style="background:#1a2332"></button>
+                    </div>
+                </div>
+
+                <div class="personalize-section">
+                    <label>Цвет акцента</label>
+                    <div class="color-grid">
+                        <button class="color-btn accent-btn" data-accent="#6c5ce7" style="background:#6c5ce7"></button>
+                        <button class="color-btn accent-btn" data-accent="#00b894" style="background:#00b894"></button>
+                        <button class="color-btn accent-btn" data-accent="#e17055" style="background:#e17055"></button>
+                        <button class="color-btn accent-btn" data-accent="#0984e3" style="background:#0984e3"></button>
+                        <button class="color-btn accent-btn" data-accent="#e84393" style="background:#e84393"></button>
+                        <button class="color-btn accent-btn" data-accent="#fdcb6e" style="background:#fdcb6e"></button>
+                    </div>
+                </div>
+
+                <div class="personalize-section">
+                    <label>Скругление углов</label>
+                    <div class="radius-grid">
+                        <button class="radius-btn" data-radius="0px">Квадрат</button>
+                        <button class="radius-btn" data-radius="8px">Мало</button>
+                        <button class="radius-btn" data-radius="12px">Средне</button>
+                        <button class="radius-btn" data-radius="20px">Много</button>
+                    </div>
+                </div>
+
+                <button id="btn-reset-personalize" class="btn btn-secondary">Сбросить</button>
+                <button id="btn-close-personalize" class="btn btn-primary">Готово</button>
             </div>
         </div>
     </div>

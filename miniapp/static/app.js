@@ -530,7 +530,78 @@ document.querySelectorAll('.theme-btn').forEach(btn => {
 });
 
 els.btnCloseTheme?.addEventListener('click', () => els.themeModal.classList.add('hidden'));
-els.btnTheme?.addEventListener('click', () => els.themeModal.classList.remove('hidden'));
+els.btnTheme?.addEventListener('click', () => {
+    els.themeModal.classList.remove('hidden');
+    if (state.userTier === 'vip') {
+        document.getElementById('btn-personalize').style.display = '';
+    }
+});
+
+// ==========================================
+// PERSONALIZATION (VIP)
+// ==========================================
+
+function loadPersonalization() {
+    const saved = JSON.parse(localStorage.getItem('kinovecher-personalize') || '{}');
+    if (saved.font) document.body.style.fontFamily = saved.font;
+    if (saved.bg) document.body.style.backgroundColor = saved.bg;
+    if (saved.accent) document.documentElement.style.setProperty('--accent', saved.accent);
+    if (saved.radius) document.documentElement.style.setProperty('--radius', saved.radius);
+}
+
+function savePersonalization(data) {
+    const current = JSON.parse(localStorage.getItem('kinovecher-personalize') || '{}');
+    const merged = { ...current, ...data };
+    localStorage.setItem('kinovecher-personalize', JSON.stringify(merged));
+    if (data.font) document.body.style.fontFamily = data.font;
+    if (data.bg) document.body.style.backgroundColor = data.bg;
+    if (data.accent) document.documentElement.style.setProperty('--accent', data.accent);
+    if (data.radius) document.documentElement.style.setProperty('--radius', data.radius);
+}
+
+document.getElementById('btn-personalize')?.addEventListener('click', () => {
+    els.themeModal.classList.add('hidden');
+    document.getElementById('personalize-modal').classList.remove('hidden');
+});
+
+document.getElementById('btn-close-personalize')?.addEventListener('click', () => {
+    document.getElementById('personalize-modal').classList.add('hidden');
+});
+
+document.querySelectorAll('.font-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const fonts = { default: '', serif: 'Georgia, serif', mono: 'monospace', cursive: 'cursive' };
+        savePersonalization({ font: fonts[btn.dataset.font] || '' });
+        document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    });
+});
+
+document.querySelectorAll('.color-btn:not(.accent-btn)').forEach(btn => {
+    btn.addEventListener('click', () => {
+        savePersonalization({ bg: btn.dataset.bg });
+    });
+});
+
+document.querySelectorAll('.accent-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        savePersonalization({ accent: btn.dataset.accent });
+    });
+});
+
+document.querySelectorAll('.radius-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        savePersonalization({ radius: btn.dataset.radius });
+    });
+});
+
+document.getElementById('btn-reset-personalize')?.addEventListener('click', () => {
+    localStorage.removeItem('kinovecher-personalize');
+    document.body.style.fontFamily = '';
+    document.body.style.backgroundColor = '';
+    document.documentElement.style.setProperty('--accent', '#6c5ce7');
+    document.documentElement.style.setProperty('--radius', '12px');
+});
 
 // ==========================================
 // WEBSOCKET
@@ -796,6 +867,7 @@ function init() {
     loadYouTubeAPI();
     loadTwitchAPI();
     loadSavedTheme();
+    loadPersonalization();
     const savedTier = localStorage.getItem('kinovecher-tier');
     if (savedTier) state.userTier = savedTier;
     initFromUrl();
@@ -810,7 +882,8 @@ function applyTierFeatures() {
         els.tabUpload.style.display = '';
         els.btnTheme.style.display = '';
     } else if (state.userTier === 'paid') {
-        els.tabUpload.style.display = '';
+        els.tabTwitch.style.display = '';
+        els.btnTheme.style.display = '';
     }
 }
 

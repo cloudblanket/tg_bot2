@@ -990,3 +990,70 @@ body.theme-space {
     word-break: break-all;
     margin-top: 8px;
 }
+
+/* Personalization Modal */
+.personalize-section {
+    margin-bottom: 20px;
+}
+
+.personalize-section label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.font-grid, .radius-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.font-btn, .radius-btn {
+    padding: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.font-btn:active, .radius-btn:active {
+    background: var(--accent);
+}
+
+.font-btn.active, .radius-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+.color-grid {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.color-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.color-btn:active {
+    transform: scale(1.1);
+}
+
+.color-btn.active {
+    border-color: white;
+    box-shadow: 0 0 10px var(--accent);
+}
+
+#btn-personalize {
+    margin-top: 12px;
+    width: 100%;
+}

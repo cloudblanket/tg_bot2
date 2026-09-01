@@ -9,8 +9,8 @@ from services.database import get_db
 
 TIERS = {
     "free": {"name": "Free", "price": 0, "price_stars": 0, "max_members": 2, "features": ["YouTube"]},
-    "paid": {"name": "Paid", "price": 399, "price_stars": 399, "max_members": 5, "features": ["YouTube", "Загрузка видео"]},
-    "vip": {"name": "VIP", "price": 999, "price_stars": 999, "max_members": 30, "features": ["YouTube", "Twitch", "Загрузка видео", "Кастомизация"]},
+    "paid": {"name": "Paid", "price": 399, "price_stars": 399, "max_members": 5, "features": ["YouTube", "Twitch", "Темы"]},
+    "vip": {"name": "VIP", "price": 999, "price_stars": 999, "max_members": 30, "features": ["YouTube", "Twitch", "Темы", "Персонализация", "Загрузка видео"]},
 }
 
 
@@ -85,10 +85,13 @@ class Subscription:
         return TIERS.get(self.tier, TIERS["free"])["features"]
 
     def can_upload_video(self) -> bool:
-        return self.tier in ("paid", "vip")
+        return self.tier == "vip"
 
     def can_use_twitch(self) -> bool:
-        return self.tier == "vip"
+        return self.tier in ("paid", "vip")
+
+    def can_use_themes(self) -> bool:
+        return self.tier in ("paid", "vip")
 
     def can_customize(self) -> bool:
         return self.tier == "vip"

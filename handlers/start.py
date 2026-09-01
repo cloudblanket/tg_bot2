@@ -723,8 +723,8 @@ async def callback_help(callback: types.CallbackQuery) -> None:
         "Нажми «Тема» в приложении чтобы сменить оформление.\n\n"
         "💳 <b>Подписка</b>\n"
         "• Free: 2 участника, YouTube\n"
-        "• Paid (399⭐): 5 участников, загрузка видео\n"
-        "• VIP (999⭐): 30 участников, Twitch, темы",
+        "• Paid (399⭐): 5 участников, YouTube, Twitch, темы\n"
+        "• VIP (999⭐): 30 участников, всё + персонализация + загрузка видео",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )
