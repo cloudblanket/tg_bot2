@@ -576,9 +576,6 @@ function applyPersonalization(data) {
 }
 
 function highlightActiveButtons(data) {
-    document.querySelectorAll('.bg-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.bg === (data.bg_url || ''));
-    });
     document.querySelectorAll('.font-btn').forEach(b => {
         b.classList.toggle('active', b.dataset.font === (data.font_name || ''));
     });
@@ -601,8 +598,7 @@ function loadGoogleFont(name) {
 }
 
 function getCurrentPersonalization() {
-    const activeBg = document.querySelector('.bg-btn.active');
-    const bgUrl = document.getElementById('bg-url-input')?.value.trim() || activeBg?.dataset.bg || '';
+    const bgUrl = document.getElementById('bg-url-input')?.value.trim() || '';
     const activeFont = document.querySelector('.font-btn.active');
     const activeAccent = document.querySelector('.accent-btn.active');
     const activeRadius = document.querySelector('.radius-btn.active');
@@ -629,15 +625,6 @@ async function savePersonalizationToServer() {
         console.error('Failed to save personalization:', e);
     }
 }
-
-document.querySelectorAll('.bg-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById('bg-url-input').value = '';
-        tg?.HapticFeedback?.impactOccurred('light');
-    });
-});
 
 document.getElementById('btn-personalize')?.addEventListener('click', () => {
     els.themeModal.classList.add('hidden');
@@ -679,8 +666,6 @@ document.getElementById('btn-reset-personalize')?.addEventListener('click', () =
     document.documentElement.style.setProperty('--accent', '#6c5ce7');
     document.documentElement.style.setProperty('--radius', '12px');
     document.getElementById('bg-url-input').value = '';
-    document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
-    document.querySelector('.bg-btn')?.classList.add('active');
     document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
     document.querySelector('.font-btn')?.classList.add('active');
     document.querySelectorAll('.accent-btn').forEach(b => b.classList.remove('active'));

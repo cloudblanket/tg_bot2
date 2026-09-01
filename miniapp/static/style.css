@@ -1061,36 +1061,11 @@ body.theme-space {
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     font-size: 13px;
-    margin-top: 8px;
     outline: none;
 }
 
 .personalize-input:focus {
     border-color: var(--accent);
-}
-
-.bg-gallery {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-}
-
-.bg-btn {
-    width: 100%;
-    aspect-ratio: 16/10;
-    border-radius: var(--radius-sm);
-    border: 3px solid transparent;
-    cursor: pointer;
-    transition: all 0.2s;
-}
-
-.bg-btn:active {
-    transform: scale(0.95);
-}
-
-.bg-btn.active {
-    border-color: var(--accent);
-    box-shadow: 0 0 10px rgba(108, 92, 231, 0.5);
 }
 
 #btn-personalize {
