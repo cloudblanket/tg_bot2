@@ -16,7 +16,7 @@ router = Router(name="upload")
 logger = logging.getLogger(__name__)
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", str(Path(__file__).parent.parent / "data" / "uploads")))
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+MAX_FILE_SIZE = 350 * 1024 * 1024  # 350MB
 
 
 def ensure_upload_dir() -> None:
