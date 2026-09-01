@@ -662,14 +662,10 @@ async def cmd_stats(message: types.Message) -> None:
 
     if _last_stats_message_id:
         try:
-            await message.bot.edit_message_text(
-                text=text,
+            await message.bot.delete_message(
                 chat_id=message.chat.id,
                 message_id=_last_stats_message_id,
-                parse_mode="HTML",
             )
-            await message.delete()
-            return
         except Exception:
             pass
 
