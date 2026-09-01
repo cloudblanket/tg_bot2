@@ -6,6 +6,10 @@ const SYNC_WS_URL = window.location.hostname === 'localhost'
     ? 'ws://localhost:8765/ws'
     : `wss://${window.location.host}/ws`;
 
+const API_BASE = window.location.hostname === 'localhost'
+    ? 'http://localhost:8765'
+    : `https://${window.location.host}`;
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
     tg.ready();
@@ -23,10 +27,12 @@ const state = {
     isSyncing: false,
     userTier: 'free',
     theaterPlayer: null,
+    joinPasswordRoom: null,
 };
 
 const els = {
     screenLobby: document.getElementById('screen-lobby'),
+    screenCreate: document.getElementById('screen-create'),
     screenRoom: document.getElementById('screen-room'),
     screenTheater: document.getElementById('screen-theater'),
     screenChat: document.getElementById('screen-chat'),
@@ -36,6 +42,7 @@ const els = {
     btnBack: document.getElementById('btn-back'),
     roomTitle: document.getElementById('room-title'),
     roomCodeBadge: document.getElementById('room-code-badge'),
+    roomLockBadge: document.getElementById('room-lock-badge'),
     memberCount: document.getElementById('member-count'),
     playerContainer: document.getElementById('player-container'),
     playerPlaceholder: document.getElementById('player-placeholder'),
@@ -77,6 +84,17 @@ const els = {
     chatModeMessages: document.getElementById('chat-mode-messages'),
     chatModeInput: document.getElementById('chat-mode-input'),
     btnChatModeSend: document.getElementById('btn-chat-mode-send'),
+    publicRoomsList: document.getElementById('public-rooms-list'),
+    createTitle: document.getElementById('create-title'),
+    createPassword: document.getElementById('create-password'),
+    createTypeBadge: document.getElementById('create-type-badge'),
+    createTypeHint: document.getElementById('create-type-hint'),
+    btnCreateSubmit: document.getElementById('btn-create-submit'),
+    btnCreateBack: document.getElementById('btn-create-back'),
+    passwordModal: document.getElementById('password-modal'),
+    passwordInput: document.getElementById('password-input'),
+    btnPasswordSubmit: document.getElementById('btn-password-submit'),
+    btnPasswordCancel: document.getElementById('btn-password-cancel'),
 };
 
 function formatTime(seconds) {
@@ -102,10 +120,122 @@ function extractVideoId(url) {
 
 function showScreen(screen) {
     els.screenLobby.classList.remove('active');
+    els.screenCreate.classList.remove('active');
     els.screenRoom.classList.remove('active');
     els.screenTheater.classList.remove('active');
     els.screenChat.classList.remove('active');
     screen.classList.add('active');
+}
+
+async function loadPublicRooms() {
+    try {
+        const resp = await fetch(`${API_BASE}/api/rooms`);
+        const data = await resp.json();
+        const rooms = data.rooms || [];
+
+        if (rooms.length === 0) {
+            els.publicRoomsList.innerHTML = '<p class="no-rooms-text">Пока нет открытых комнат</p>';
+            return;
+        }
+
+        els.publicRoomsList.innerHTML = rooms.map(r => `
+            <div class="public-room-item" data-code="${escapeHtml(r.code)}" data-has-password="${r.has_password}">
+                <div class="public-room-info">
+                    <div class="public-room-title">${escapeHtml(r.title)}</div>
+                    <div class="public-room-meta">👥 ${r.members} чел. ${r.has_password ? '🔒' : ''}</div>
+                </div>
+                <button class="public-room-join">Войти</button>
+            </div>
+        `).join('');
+
+        els.publicRoomsList.querySelectorAll('.public-room-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const code = item.dataset.code;
+                const hasPassword = item.dataset.hasPassword === 'true';
+                if (hasPassword) {
+                    showPasswordModal(code);
+                } else {
+                    joinRoomByCode(code);
+                }
+            });
+        });
+    } catch (e) {
+        els.publicRoomsList.innerHTML = '<p class="no-rooms-text">Не удалось загрузить</p>';
+    }
+}
+
+function showPasswordModal(roomCode) {
+    state.joinPasswordRoom = roomCode;
+    els.passwordInput.value = '';
+    els.passwordModal.classList.remove('hidden');
+    els.passwordInput.focus();
+}
+
+function hidePasswordModal() {
+    els.passwordModal.classList.add('hidden');
+    state.joinPasswordRoom = null;
+}
+
+async function joinRoomByCode(code, password = '') {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+        return;
+    }
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/rooms/join`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, code, password }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            tg?.HapticFeedback?.notificationOccurred('error');
+            alert(data.error || 'Ошибка входа');
+            return;
+        }
+
+        state.userTier = data.tier || 'free';
+        localStorage.setItem('kinovecher-tier', data.tier);
+        enterRoom(code, data.title);
+    } catch (e) {
+        tg?.HapticFeedback?.notificationOccurred('error');
+    }
+}
+
+async function createRoom() {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId) return;
+
+    const title = els.createTitle.value.trim() || 'Киновечер';
+    const password = els.createPassword.value.trim();
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/rooms/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                user_id: userId,
+                title,
+                password,
+                is_public: !password,
+            }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            alert(data.error || 'Ошибка создания');
+            return;
+        }
+
+        state.userTier = 'free';
+        localStorage.setItem('kinovecher-tier', 'free');
+        enterRoom(data.code, data.title);
+    } catch (e) {
+        alert('Ошибка создания комнаты');
+    }
 }
 
 function addChatMessage(name, text) {
@@ -508,18 +638,56 @@ function getUserDisplayName() {
 els.btnJoin.addEventListener('click', () => {
     const code = els.roomCodeInput.value.trim();
     if (!code) { tg?.HapticFeedback?.notificationOccurred('error'); return; }
-    enterRoom(code);
+    joinRoomByCode(code);
 });
 
-els.btnCreate.addEventListener('click', () => {
-    tg?.sendData(JSON.stringify({ action: 'create_room' }));
-    tg?.HapticFeedback?.notificationOccurred('success');
+els.btnCreate?.addEventListener('click', () => {
+    els.createTitle.value = '';
+    els.createPassword.value = '';
+    updateCreateTypeBadge();
+    showScreen(els.screenCreate);
+});
+
+els.btnCreateBack?.addEventListener('click', () => {
+    showScreen(els.screenLobby);
+});
+
+els.createPassword?.addEventListener('input', updateCreateTypeBadge);
+
+function updateCreateTypeBadge() {
+    const hasPassword = els.createPassword.value.trim().length > 0;
+    if (hasPassword) {
+        els.createTypeBadge.textContent = '🔒 Закрытая';
+        els.createTypeBadge.className = 'badge badge-private';
+        els.createTypeHint.textContent = 'Только по паролю';
+    } else {
+        els.createTypeBadge.textContent = '🌐 Открытая';
+        els.createTypeBadge.className = 'badge badge-public';
+        els.createTypeHint.textContent = 'Все смогут найти и войти';
+    }
+}
+
+els.btnCreateSubmit?.addEventListener('click', createRoom);
+
+els.btnPasswordSubmit?.addEventListener('click', () => {
+    const password = els.passwordInput.value.trim();
+    if (state.joinPasswordRoom) {
+        hidePasswordModal();
+        joinRoomByCode(state.joinPasswordRoom, password);
+    }
+});
+
+els.btnPasswordCancel?.addEventListener('click', hidePasswordModal);
+
+els.passwordInput?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') els.btnPasswordSubmit.click();
 });
 
 els.btnBack.addEventListener('click', () => {
     if (state.ws) state.ws.close();
     state.roomCode = null;
     showScreen(els.screenLobby);
+    loadPublicRooms();
 });
 
 els.btnPlayPause.addEventListener('click', () => {
@@ -570,13 +738,13 @@ function sendChatMessage() {
 // ROOM ENTRY
 // ==========================================
 
-function enterRoom(roomCode) {
+function enterRoom(roomCode, roomTitle) {
     state.roomCode = roomCode;
     els.roomCodeBadge.textContent = roomCode;
-    els.roomTitle.textContent = 'Киновечер';
+    els.roomTitle.textContent = roomTitle || 'Киновечер';
+    els.roomLockBadge.style.display = 'none';
     showScreen(els.screenRoom);
     wsConnect(roomCode);
-    tg?.sendData(JSON.stringify({ action: 'get_room_info', room_code: roomCode }));
     tg?.HapticFeedback?.notificationOccurred('success');
 }
 
@@ -601,6 +769,7 @@ function init() {
     initFromUrl();
     if (tg?.initDataUnsafe?.user) state.userInfo = tg.initDataUnsafe.user;
     applyTierFeatures();
+    if (!state.roomCode) loadPublicRooms();
 }
 
 function applyTierFeatures() {

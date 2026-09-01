@@ -7,9 +7,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,91 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
         if websocket in room.connections:
             room.connections.remove(websocket)
         logger.info("WS disconnect room=%s total=%d", room_code, len(room.connections))
+
+
+@app.get("/api/rooms")
+async def api_list_rooms():
+    from models.room import Room
+    rooms = Room.get_public_rooms()
+    result = []
+    for r in rooms:
+        members = r.get_members()
+        result.append({
+            "code": r.code,
+            "title": r.title,
+            "members": len(members),
+            "has_password": bool(r.password),
+            "creator_id": r.creator_id,
+        })
+    return {"rooms": result}
+
+
+@app.post("/api/rooms/create")
+async def api_create_room(data: dict):
+    from models.room import Room
+    from models.user import User
+    from models.subscription import Subscription
+
+    user_id = data.get("user_id")
+    title = data.get("title", "Киновечер")[:50]
+    password = data.get("password", "")
+    is_public = data.get("is_public", True)
+
+    if not user_id:
+        return JSONResponse({"error": "user_id required"}, status_code=400)
+
+    user = User.get_by_telegram_id(user_id)
+    if not user:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+
+    sub = Subscription.get_by_telegram_id(user_id)
+    room = Room.create(
+        creator_id=user_id,
+        title=title,
+        password=password if password else None,
+        is_public=is_public,
+    )
+    room.add_member(user_id)
+
+    return {
+        "code": room.code,
+        "title": room.title,
+        "has_password": bool(room.password),
+        "is_public": room.is_public,
+        "max_members": sub.max_members,
+    }
+
+
+@app.post("/api/rooms/join")
+async def api_join_room(data: dict):
+    from models.room import Room
+    from models.user import User
+    from models.subscription import Subscription
+
+    user_id = data.get("user_id")
+    code = data.get("code", "")
+    password = data.get("password", "")
+
+    if not user_id:
+        return JSONResponse({"error": "user_id required"}, status_code=400)
+
+    room = Room.get_by_code(code)
+    if not room or not room.is_active:
+        return JSONResponse({"error": "Room not found"}, status_code=404)
+
+    if room.password and room.password != password:
+        return JSONResponse({"error": "Wrong password"}, status_code=403)
+
+    if not room.add_member(user_id):
+        return JSONResponse({"error": "Room full"}, status_code=400)
+
+    sub = Subscription.get_by_telegram_id(user_id)
+    return {
+        "code": room.code,
+        "title": room.title,
+        "tier": sub.tier,
+        "max_members": sub.max_members,
+    }
 
 
 # Статические файлы

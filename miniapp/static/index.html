@@ -23,6 +23,39 @@
                 <button id="btn-join" class="btn btn-primary">Присоединиться</button>
                 <div class="divider"><span>или</span></div>
                 <button id="btn-create" class="btn btn-secondary">Создать новую комнату</button>
+
+                <!-- Открытые комнаты -->
+                <div class="public-rooms-section">
+                    <h3>🌐 Открытые комнаты</h3>
+                    <div id="public-rooms-list" class="public-rooms-list">
+                        <p class="loading-text">Загрузка...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Создание комнаты -->
+        <div id="screen-create" class="screen">
+            <div class="room-header">
+                <button id="btn-create-back" class="btn-icon">←</button>
+                <div class="room-info">
+                    <h2>Новая комната</h2>
+                </div>
+            </div>
+            <div class="create-form">
+                <div class="input-group">
+                    <label for="create-title">Название комнаты</label>
+                    <input type="text" id="create-title" placeholder="Мой киновечер" maxlength="50">
+                </div>
+                <div class="input-group">
+                    <label for="create-password">Пароль (необязательно)</label>
+                    <input type="text" id="create-password" placeholder="Оставь пустым для открытой" maxlength="30">
+                </div>
+                <div class="create-type-info">
+                    <span id="create-type-badge" class="badge badge-public">🌐 Открытая</span>
+                    <p id="create-type-hint">Все смогут найти и войти</p>
+                </div>
+                <button id="btn-create-submit" class="btn btn-primary">Создать комнату</button>
             </div>
         </div>
 
@@ -33,6 +66,7 @@
                 <div class="room-info">
                     <h2 id="room-title">Киновечер</h2>
                     <span id="room-code-badge" class="badge"></span>
+                    <span id="room-lock-badge" class="badge badge-lock" style="display:none">🔒</span>
                 </div>
                 <button id="btn-theme" class="btn-icon" style="display:none" title="Темы">🎨</button>
                 <div id="member-count" class="member-count">0</div>
@@ -63,7 +97,7 @@
                 </div>
                 <div class="add-video-section">
                     <div class="input-group row">
-                        <input type="text" id="video-url-input" placeholder="Ссылка на YouTube..." flex="1">
+                        <input type="text" id="video-url-input" placeholder="Ссылка на видео..." flex="1">
                         <button id="btn-add-video" class="btn btn-primary btn-sm">+</button>
                     </div>
                 </div>
@@ -143,6 +177,20 @@
             <div class="chat-mode-input">
                 <input type="text" id="chat-mode-input" placeholder="Сообщение..." maxlength="500">
                 <button id="btn-chat-mode-send" class="btn btn-primary btn-sm">→</button>
+            </div>
+        </div>
+
+        <!-- Модалка пароля -->
+        <div id="password-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3>🔒 Введи пароль</h3>
+                <div class="input-group">
+                    <input type="text" id="password-input" placeholder="Пароль комнаты" maxlength="30">
+                </div>
+                <div class="modal-buttons">
+                    <button id="btn-password-submit" class="btn btn-primary">Войти</button>
+                    <button id="btn-password-cancel" class="btn btn-secondary">Отмена</button>
+                </div>
             </div>
         </div>
 
