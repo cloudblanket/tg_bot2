@@ -1,5 +1,5 @@
 /**
- * Абсолют Синема — Mini App
+ * абсолют синема — Mini App
  */
 
 const SYNC_WS_URL = window.location.hostname === 'localhost'
@@ -210,7 +210,7 @@ async function createRoom() {
     const userId = tg?.initDataUnsafe?.user?.id;
     if (!userId) return;
 
-    const title = els.createTitle.value.trim() || 'Абсолют Синема';
+    const title = els.createTitle.value.trim() || 'абсолют синема';
     const password = els.createPassword.value.trim();
 
     try {
@@ -946,7 +946,7 @@ function sendChatMessage() {
 function enterRoom(roomCode, roomTitle) {
     state.roomCode = roomCode;
     els.roomCodeBadge.textContent = roomCode;
-    els.roomTitle.textContent = roomTitle || 'Абсолют Синема';
+    els.roomTitle.textContent = roomTitle || 'абсолют синема';
     els.roomLockBadge.style.display = 'none';
     showScreen(els.screenRoom);
     wsConnect(roomCode);
