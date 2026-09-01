@@ -25,9 +25,8 @@ class Subscription:
 
     def save(self) -> None:
         db = get_db()
-        now = datetime.now().isoformat()
         if self.started_at is None:
-            self.started_at = now
+            self.started_at = datetime.now(timezone.utc).isoformat()
         db.execute(
             """
             INSERT INTO subscriptions (telegram_id, tier, started_at, expires_at, payment_id)
@@ -59,12 +58,13 @@ class Subscription:
             expires_at=row[4],
             payment_id=row[5],
         )
-        if sub.expires_at:
+        if sub.expires_at and sub.tier != "free":
             try:
                 exp = datetime.fromisoformat(sub.expires_at)
                 if exp.tzinfo is None:
                     exp = exp.replace(tzinfo=timezone.utc)
-                if exp < datetime.now(timezone.utc):
+                now = datetime.now(timezone.utc)
+                if exp < now:
                     sub.tier = "free"
                     sub.expires_at = None
                     sub.save()
