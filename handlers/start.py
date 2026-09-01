@@ -14,6 +14,8 @@ router = Router(name="start")
 
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
 
+_last_bot_messages: dict[int, int] = {}
+
 
 class CreateRoomState(StatesGroup):
     waiting_title = State()
@@ -26,6 +28,32 @@ class JoinState(StatesGroup):
 
 class JoinPasswordState(StatesGroup):
     waiting_password = State()
+
+
+async def send_and_track(message: types.Message, text: str, **kwargs) -> types.Message:
+    chat_id = message.chat.id
+    if chat_id in _last_bot_messages:
+        try:
+            await message.bot.delete_message(chat_id=chat_id, message_id=_last_bot_messages[chat_id])
+        except Exception:
+            pass
+    msg = await message.answer(text, **kwargs)
+    _last_bot_messages[chat_id] = msg.message_id
+    return msg
+
+
+async def edit_or_send(callback: types.CallbackQuery, text: str, **kwargs) -> None:
+    try:
+        await callback.message.edit_text(text, **kwargs)
+    except Exception:
+        chat_id = callback.message.chat.id
+        if chat_id in _last_bot_messages:
+            try:
+                await callback.bot.delete_message(chat_id=chat_id, message_id=_last_bot_messages[chat_id])
+            except Exception:
+                pass
+        msg = await callback.message.answer(text, **kwargs)
+        _last_bot_messages[chat_id] = msg.message_id
 
 
 def main_menu_keyboard() -> types.InlineKeyboardMarkup:
@@ -60,7 +88,8 @@ async def cmd_start(message: types.Message) -> None:
             if room.password:
                 builder = InlineKeyboardBuilder()
                 builder.button(text="← Назад", callback_data="menu:main")
-                await message.answer(
+                await send_and_track(
+                    message,
                     f"🔒 Комната <code>{room.code}</code> за паролем.\nВведи пароль:",
                     reply_markup=builder.as_markup(),
                     parse_mode="HTML",
@@ -77,18 +106,20 @@ async def cmd_start(message: types.Message) -> None:
                 )
                 builder.button(text="← Назад", callback_data="menu:main")
                 builder.adjust(1)
-                await message.answer(
+                await send_and_track(
+                    message,
                     f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
                     reply_markup=builder.as_markup(),
                     parse_mode="HTML",
                 )
                 return
             else:
-                await message.answer("⚠️ Комната заполнена.")
+                await send_and_track(message, "⚠️ Комната заполнена.")
                 return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
-    await message.answer(
+    await send_and_track(
+        message,
         f"👋 Привет, {message.from_user.first_name}!\n\n"
         f"Я — бот для совместного просмотра видео.\n"
         f"💳 Тариф: <b>{sub.tier.upper()}</b>",
@@ -100,7 +131,8 @@ async def cmd_start(message: types.Message) -> None:
 @router.callback_query(F.data == "menu:main")
 async def callback_main_menu(callback: types.CallbackQuery) -> None:
     sub = Subscription.get_by_telegram_id(callback.from_user.id)
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"👋 Привет, {callback.from_user.first_name}!\n\n"
         f"Я — бот для совместного просмотра видео.\n"
         f"💳 Тариф: <b>{sub.tier.upper()}</b>",
@@ -114,7 +146,8 @@ async def callback_main_menu(callback: types.CallbackQuery) -> None:
 async def callback_create(callback: types.CallbackQuery, state: FSMContext) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:main")
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         "📝 Введи название комнаты:",
         reply_markup=builder.as_markup(),
     )
@@ -127,9 +160,10 @@ async def process_room_title(message: types.Message, state: FSMContext) -> None:
     await state.update_data(title=message.text.strip()[:50])
     builder = InlineKeyboardBuilder()
     builder.button(text="Без пароля", callback_data="create:no_password")
-    builder.button(text="← Назад", callback_data="menu:main")
+    builder.button(text="← Назад", callback_data="menu:create")
     builder.adjust(1)
-    await message.answer(
+    await send_and_track(
+        message,
         "🔐 Введи пароль для комнаты\n(или нажми «Без пароля»):",
         reply_markup=builder.as_markup(),
     )
@@ -164,7 +198,8 @@ async def callback_no_password(callback: types.CallbackQuery, state: FSMContext)
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"🎉 Комната создана!\n\n"
         f"📌 Название: <b>{title}</b>\n"
         f"🔑 Код: <code>{room.code}</code>\n"
@@ -206,7 +241,8 @@ async def process_room_password(message: types.Message, state: FSMContext) -> No
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    await message.answer(
+    await send_and_track(
+        message,
         f"🎉 Комната создана!\n\n"
         f"📌 Название: <b>{title}</b>\n"
         f"🔑 Код: <code>{room.code}</code>\n"
@@ -228,7 +264,8 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
 
     if not user_rooms:
         builder.button(text="← Назад", callback_data="menu:main")
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             "📋 У тебя нет активных комнат.\nСоздай новую!",
             reply_markup=builder.as_markup(),
         )
@@ -242,7 +279,8 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
             )
         builder.button(text="← Назад", callback_data="menu:main")
         builder.adjust(1)
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             "📋 Твои комнаты:",
             reply_markup=builder.as_markup(),
         )
@@ -258,7 +296,8 @@ async def callback_public_rooms(callback: types.CallbackQuery) -> None:
 
     if not public_rooms:
         builder.button(text="← Назад", callback_data="menu:main")
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             "🌐 Пока нет открытых комнат.\nСоздай первую!",
             reply_markup=builder.as_markup(),
         )
@@ -271,7 +310,8 @@ async def callback_public_rooms(callback: types.CallbackQuery) -> None:
             )
         builder.button(text="← Назад", callback_data="menu:main")
         builder.adjust(1)
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             "🌐 Открытые комнаты:",
             reply_markup=builder.as_markup(),
         )
@@ -307,7 +347,8 @@ async def callback_public_room_detail(callback: types.CallbackQuery) -> None:
     builder.adjust(1)
 
     lock = "🔒 Закрытая" if room.password else "🌐 Открытая"
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"📌 {room.title} ({room.code})\n"
         f"🔐 Тип: {lock}\n"
         f"👥 Участники ({len(members)}): {member_names}",
@@ -330,7 +371,8 @@ async def callback_public_room_join(callback: types.CallbackQuery, state: FSMCon
     if room.password:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data=f"pubroom:{room.code}")
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             "🔐 Введи пароль комнаты:",
             reply_markup=builder.as_markup(),
         )
@@ -348,7 +390,8 @@ async def callback_public_room_join(callback: types.CallbackQuery, state: FSMCon
         )
         builder.button(text="← Назад", callback_data="menu:public_rooms")
         builder.adjust(1)
-        await callback.message.edit_text(
+        await edit_or_send(
+            callback,
             f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
             reply_markup=builder.as_markup(),
             parse_mode="HTML",
@@ -358,15 +401,12 @@ async def callback_public_room_join(callback: types.CallbackQuery, state: FSMCon
     await callback.answer()
 
 
-class JoinPasswordState(StatesGroup):
-    waiting_password = State()
-
-
 @router.callback_query(F.data == "menu:join")
 async def callback_join(callback: types.CallbackQuery, state: FSMContext) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:main")
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         "🔑 Введи код комнаты:",
         reply_markup=builder.as_markup(),
     )
@@ -386,11 +426,13 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     )
     user.save()
 
+    from models.room import Room
     room = Room.get_by_code(code) if code else None
     if room is None:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
+        await send_and_track(
+            message,
             "❌ Комната не найдена.",
             reply_markup=builder.as_markup(),
         )
@@ -399,7 +441,8 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     if not room.is_active:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
+        await send_and_track(
+            message,
             "❌ Комната закрыта.",
             reply_markup=builder.as_markup(),
         )
@@ -408,7 +451,8 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     if room.password:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
+        await send_and_track(
+            message,
             "🔐 Эта комната за паролем.\nВведи пароль:",
             reply_markup=builder.as_markup(),
         )
@@ -423,7 +467,8 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
         builder.button(text="💳 Подписка", callback_data="menu:subscribe")
         builder.button(text="← Назад", callback_data="menu:main")
         builder.adjust(1)
-        await message.answer(
+        await send_and_track(
+            message,
             f"⚠️ Комната заполнена (макс. {creator_sub.max_members} участников).",
             reply_markup=builder.as_markup(),
         )
@@ -437,7 +482,8 @@ async def process_join_code(message: types.Message, state: FSMContext) -> None:
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    await message.answer(
+    await send_and_track(
+        message,
         f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
@@ -456,13 +502,14 @@ async def process_join_password(message: types.Message, state: FSMContext) -> No
     if room is None or not room.is_active:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer("❌ Комната не найдена.", reply_markup=builder.as_markup())
+        await send_and_track(message, "❌ Комната не найдена.", reply_markup=builder.as_markup())
         return
 
     if room.password != password:
         builder = InlineKeyboardBuilder()
         builder.button(text="← Назад", callback_data="menu:main")
-        await message.answer(
+        await send_and_track(
+            message,
             "❌ Неверный пароль.",
             reply_markup=builder.as_markup(),
         )
@@ -475,7 +522,8 @@ async def process_join_password(message: types.Message, state: FSMContext) -> No
         builder.button(text="💳 Подписка", callback_data="menu:subscribe")
         builder.button(text="← Назад", callback_data="menu:main")
         builder.adjust(1)
-        await message.answer(
+        await send_and_track(
+            message,
             f"⚠️ Комната заполнена (макс. {creator_sub.max_members} участников).",
             reply_markup=builder.as_markup(),
         )
@@ -489,7 +537,8 @@ async def process_join_password(message: types.Message, state: FSMContext) -> No
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    await message.answer(
+    await send_and_track(
+        message,
         f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
@@ -507,14 +556,15 @@ async def callback_leave_room(callback: types.CallbackQuery) -> None:
 
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:rooms")
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"🚪 Ты вышел из комнаты {code}.",
         reply_markup=builder.as_markup(),
     )
     await callback.answer("Ты вышел из комнаты.", show_alert=True)
 
 
-@router.callback_query(F.data.startswith("room:") & ~F.data.startswith("room:leave:"))
+@router.callback_query(F.data.startswith("room:") & ~F.data.startswith("room:leave:") & ~F.data.startswith("room:close:"))
 async def callback_room(callback: types.CallbackQuery) -> None:
     from models.room import Room
 
@@ -548,7 +598,8 @@ async def callback_room(callback: types.CallbackQuery) -> None:
     builder.adjust(1)
 
     lock = "🔒" if room.password else "🌐"
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"📌 {room.title} ({room.code}) {lock}\n"
         f"👥 Участники ({len(members)}): {member_names}",
         reply_markup=builder.as_markup(),
@@ -574,7 +625,8 @@ async def callback_close_room(callback: types.CallbackQuery) -> None:
     room.deactivate()
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:rooms")
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         f"🗑 Комната <code>{code}</code> закрыта.",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
@@ -582,11 +634,71 @@ async def callback_close_room(callback: types.CallbackQuery) -> None:
     await callback.answer("Комната закрыта.", show_alert=True)
 
 
+@router.callback_query(F.data == "menu:subscribe")
+async def callback_subscribe_menu(callback: types.CallbackQuery) -> None:
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+
+    lines = [f"💳 Твой тариф: <b>{sub.tier.upper()}</b>\n"]
+
+    for key, tier in TIERS.items():
+        current = " ← текущий" if key == sub.tier else ""
+        price = tier.get("price_stars", 0)
+        price_str = "бесплатно" if price == 0 else f"⭐ {price}"
+        lines.append(
+            f"\n<b>{tier['name']}</b> — {price_str}{current}\n"
+            f"  👥 До {tier['max_members']} чел.\n"
+            f"  🎬 {', '.join(tier['features'])}"
+        )
+
+    builder = InlineKeyboardBuilder()
+
+    if sub.tier != "paid":
+        builder.button(text="💎 Paid — ⭐ 399", callback_data="subscribe:paid")
+    if sub.tier != "vip":
+        builder.button(text="👑 VIP — ⭐ 999", callback_data="subscribe:vip")
+    builder.button(text="← Назад", callback_data="menu:main")
+    builder.adjust(1)
+
+    await edit_or_send(
+        callback,
+        "\n".join(lines),
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "menu:profile")
+async def callback_profile(callback: types.CallbackQuery) -> None:
+    user = User.get_by_telegram_id(callback.from_user.id)
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+
+    name = user.first_name or user.username or "Аноним"
+    tier = sub.tier.upper()
+    features = ", ".join(sub.features)
+
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+
+    await edit_or_send(
+        callback,
+        f"👤 <b>Профиль</b>\n\n"
+        f"Имя: {name}\n"
+        f"ID: <code>{callback.from_user.id}</code>\n"
+        f"💳 Тариф: <b>{tier}</b>\n"
+        f"🎬 Функции: {features}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
 @router.callback_query(F.data == "menu:help")
 async def callback_help(callback: types.CallbackQuery) -> None:
     builder = InlineKeyboardBuilder()
     builder.button(text="← Назад", callback_data="menu:main")
-    await callback.message.edit_text(
+    await edit_or_send(
+        callback,
         "📚 <b>Как пользоваться ботом</b>\n\n"
         "1️⃣ <b>Создай комнату</b> — нажми «Создать комнату»\n"
         "2️⃣ <b>Пригласи друга</b> — отправь ему код комнаты\n"

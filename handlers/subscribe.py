@@ -17,45 +17,6 @@ _admin_raw = os.getenv("ADMIN_ID")
 ADMIN_ID = int(_admin_raw) if _admin_raw else None
 
 
-def back_button(callback_data: str = "menu:main") -> types.InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data=callback_data)
-    return builder.as_markup()
-
-
-@router.callback_query(F.data == "menu:subscribe")
-async def callback_subscribe_menu(callback: types.CallbackQuery) -> None:
-    sub = Subscription.get_by_telegram_id(callback.from_user.id)
-
-    lines = [f"💳 Твой тариф: <b>{sub.tier.upper()}</b>\n"]
-
-    for key, tier in TIERS.items():
-        current = " ← текущий" if key == sub.tier else ""
-        price = tier.get("price_stars", 0)
-        price_str = "бесплатно" if price == 0 else f"⭐ {price}"
-        lines.append(
-            f"\n<b>{tier['name']}</b> — {price_str}{current}\n"
-            f"  👥 До {tier['max_members']} чел.\n"
-            f"  🎬 {', '.join(tier['features'])}"
-        )
-
-    builder = InlineKeyboardBuilder()
-
-    if sub.tier != "paid":
-        builder.button(text="💎 Paid — ⭐ 399", callback_data="subscribe:paid")
-    if sub.tier != "vip":
-        builder.button(text="👑 VIP — ⭐ 999", callback_data="subscribe:vip")
-    builder.button(text="← Назад", callback_data="menu:main")
-    builder.adjust(1)
-
-    await callback.message.edit_text(
-        "\n".join(lines),
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML",
-    )
-    await callback.answer()
-
-
 @router.callback_query(F.data.startswith("subscribe:"))
 async def callback_subscribe(callback: types.CallbackQuery) -> None:
     tier = callback.data.split(":", 1)[1]
@@ -120,30 +81,6 @@ async def successful_payment(message: types.Message) -> None:
                 reply_markup=builder.as_markup(),
                 parse_mode="HTML",
             )
-
-
-@router.callback_query(F.data == "menu:profile")
-async def callback_profile(callback: types.CallbackQuery) -> None:
-    user = User.get_by_telegram_id(callback.from_user.id)
-    sub = Subscription.get_by_telegram_id(callback.from_user.id)
-
-    name = user.first_name or user.username or "Аноним"
-    tier = sub.tier.upper()
-    features = ", ".join(sub.features)
-
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data="menu:main")
-
-    await callback.message.edit_text(
-        f"👤 <b>Профиль</b>\n\n"
-        f"Имя: {name}\n"
-        f"ID: <code>{callback.from_user.id}</code>\n"
-        f"💳 Тариф: <b>{tier}</b>\n"
-        f"🎬 Функции: {features}",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML",
-    )
-    await callback.answer()
 
 
 @router.message(Command("vip"))
