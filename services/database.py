@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import threading
 from pathlib import Path
+from typing import Any, Optional
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 _use_postgres = DATABASE_URL.startswith("postgresql")
@@ -12,37 +13,67 @@ def is_postgres() -> bool:
     return _use_postgres
 
 
-def placeholders(count: int) -> str:
-    if _use_postgres:
-        return ", ".join(["%s"] * count)
-    return ", ".join(["?"] * count)
-
-
 def placeholder() -> str:
     return "%s" if _use_postgres else "?"
 
 
+def placeholders(count: int) -> str:
+    return ", ".join([placeholder()] * count)
+
+
 if _use_postgres:
     import psycopg2
-    import psycopg2.extras
 
-    _connection = None
     _lock = threading.Lock()
+    _conn = None
+
+    class PgWrapper:
+        def __init__(self, conn):
+            self._conn = conn
+
+        def execute(self, sql: str, params: Any = None):
+            cur = self._conn.cursor()
+            if params is not None:
+                cur.execute(sql, params)
+            else:
+                cur.execute(sql)
+            return cur
+
+        def commit(self):
+            self._conn.commit()
+
+        def close(self):
+            self._conn.close()
+
+        @property
+        def closed(self):
+            return self._conn.closed
+
+        @property
+        def autocommit(self):
+            return self._conn.autocommit
+
+        @autocommit.setter
+        def autocommit(self, value):
+            self._conn.autocommit = value
+
+        def cursor(self):
+            return self._conn.cursor()
 
     def get_db():
-        global _connection
-        if _connection is None or _connection.closed:
-            _connection = psycopg2.connect(DATABASE_URL)
-            _connection.autocommit = False
-            init_tables_pg(_connection)
-        return _connection
+        global _conn
+        if _conn is None or _conn.closed:
+            raw = psycopg2.connect(DATABASE_URL)
+            raw.autocommit = False
+            _conn = PgWrapper(raw)
+            init_tables_pg(_conn)
+        return _conn
 
     def get_lock():
         return _lock
 
     def init_tables_pg(db):
-        cur = db.cursor()
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
                 telegram_id BIGINT UNIQUE NOT NULL,
@@ -50,9 +81,9 @@ if _use_postgres:
                 first_name TEXT,
                 is_premium BOOLEAN DEFAULT FALSE,
                 tier TEXT DEFAULT 'free'
-            );
+            )
         """)
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS rooms (
                 id SERIAL PRIMARY KEY,
                 code TEXT UNIQUE NOT NULL,
@@ -63,9 +94,9 @@ if _use_postgres:
                 current_video_id INTEGER,
                 password TEXT,
                 is_public BOOLEAN DEFAULT TRUE
-            );
+            )
         """)
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS room_members (
                 id SERIAL PRIMARY KEY,
                 room_id INTEGER NOT NULL,
@@ -73,9 +104,9 @@ if _use_postgres:
                 joined_at TEXT,
                 UNIQUE(room_id, telegram_id),
                 FOREIGN KEY (room_id) REFERENCES rooms(id)
-            );
+            )
         """)
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS videos (
                 id SERIAL PRIMARY KEY,
                 room_id INTEGER NOT NULL,
@@ -84,9 +115,9 @@ if _use_postgres:
                 added_by BIGINT,
                 added_at TEXT,
                 FOREIGN KEY (room_id) REFERENCES rooms(id)
-            );
+            )
         """)
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS subscriptions (
                 id SERIAL PRIMARY KEY,
                 telegram_id BIGINT NOT NULL,
@@ -95,9 +126,9 @@ if _use_postgres:
                 expires_at TEXT,
                 payment_id TEXT,
                 UNIQUE(telegram_id)
-            );
+            )
         """)
-        cur.execute("""
+        db.execute("""
             CREATE TABLE IF NOT EXISTS personalization (
                 telegram_id BIGINT PRIMARY KEY,
                 bg_url TEXT,
@@ -105,13 +136,13 @@ if _use_postgres:
                 font_name TEXT,
                 accent_color TEXT,
                 border_radius TEXT
-            );
+            )
         """)
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_room_members_telegram ON room_members(telegram_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_videos_room ON videos(room_id)")
-        cur.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_room_members_telegram ON room_members(telegram_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_videos_room ON videos(room_id)")
+        db.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id)")
         db.commit()
 
 else:
@@ -157,7 +188,9 @@ else:
                 title TEXT DEFAULT 'абсолют синема',
                 created_at TEXT,
                 is_active INTEGER DEFAULT 1,
-                current_video_id INTEGER
+                current_video_id INTEGER,
+                password TEXT,
+                is_public INTEGER DEFAULT 1
             );
 
             CREATE TABLE IF NOT EXISTS room_members (
@@ -196,21 +229,6 @@ else:
             CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id);
             """
         )
-
-        try:
-            db.execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            db.execute("ALTER TABLE rooms ADD COLUMN password TEXT")
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            db.execute("ALTER TABLE rooms ADD COLUMN is_public INTEGER DEFAULT 1")
-        except sqlite3.OperationalError:
-            pass
 
         db.executescript(
             """

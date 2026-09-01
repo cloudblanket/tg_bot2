@@ -9,6 +9,12 @@ from services.database import get_db, get_lock, placeholder, is_postgres
 from models.subscription import Subscription
 
 
+def _bool_val(val: bool) -> any:
+    if is_postgres():
+        return val
+    return 1 if val else 0
+
+
 @dataclass
 class Room:
     code: str
@@ -57,8 +63,8 @@ class Room:
                         password = excluded.password,
                         is_public = excluded.is_public
                     """,
-                    (self.code, self.creator_id, self.title, self.created_at, self.is_active,
-                     self.current_video_id, self.password, 1 if self.is_public else 0),
+                    (self.code, self.creator_id, self.title, self.created_at, _bool_val(self.is_active),
+                     self.current_video_id, self.password, _bool_val(self.is_public)),
                 )
                 self.id = cursor.lastrowid
             db.commit()
@@ -98,15 +104,26 @@ class Room:
     def get_user_rooms(cls, telegram_id: int) -> list[Room]:
         db = get_db()
         p = placeholder()
-        rows = db.execute(
-            f"""
-            SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id, r.password, r.is_public
-            FROM rooms r
-            INNER JOIN room_members rm ON r.id = rm.room_id
-            WHERE rm.telegram_id = {p} AND r.is_active = 1
-            """,
-            (telegram_id,),
-        ).fetchall()
+        if is_postgres():
+            rows = db.execute(
+                f"""
+                SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id, r.password, r.is_public
+                FROM rooms r
+                INNER JOIN room_members rm ON r.id = rm.room_id
+                WHERE rm.telegram_id = {p} AND r.is_active = TRUE
+                """,
+                (telegram_id,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                f"""
+                SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id, r.password, r.is_public
+                FROM rooms r
+                INNER JOIN room_members rm ON r.id = rm.room_id
+                WHERE rm.telegram_id = {p} AND r.is_active = 1
+                """,
+                (telegram_id,),
+            ).fetchall()
         return [
             cls(
                 id=row[0],
@@ -125,10 +142,16 @@ class Room:
     @classmethod
     def get_public_rooms(cls) -> list[Room]:
         db = get_db()
-        rows = db.execute(
-            "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public "
-            "FROM rooms WHERE is_active = 1 AND is_public = 1 ORDER BY created_at DESC LIMIT 20"
-        ).fetchall()
+        if is_postgres():
+            rows = db.execute(
+                "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public "
+                "FROM rooms WHERE is_active = TRUE AND is_public = TRUE ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
+        else:
+            rows = db.execute(
+                "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public "
+                "FROM rooms WHERE is_active = 1 AND is_public = 1 ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
         return [
             cls(
                 id=row[0],
@@ -181,23 +204,14 @@ class Room:
         db = get_db()
         p = placeholder()
         with get_lock():
-            if is_postgres():
-                db.execute(
-                    f"""
-                    INSERT INTO room_members (room_id, telegram_id, joined_at)
-                    VALUES ({p}, {p}, {p})
-                    ON CONFLICT DO NOTHING
-                    """,
-                    (self.id, telegram_id, datetime.utcnow().isoformat()),
-                )
-            else:
-                db.execute(
-                    f"""
-                    INSERT OR IGNORE INTO room_members (room_id, telegram_id, joined_at)
-                    VALUES ({p}, {p}, {p})
-                    """,
-                    (self.id, telegram_id, datetime.utcnow().isoformat()),
-                )
+            db.execute(
+                f"""
+                INSERT INTO room_members (room_id, telegram_id, joined_at)
+                VALUES ({p}, {p}, {p})
+                ON CONFLICT DO NOTHING
+                """,
+                (self.id, telegram_id, datetime.utcnow().isoformat()),
+            )
             db.commit()
         return True
 
@@ -214,8 +228,9 @@ class Room:
     def deactivate(self) -> None:
         db = get_db()
         p = placeholder()
+        val = False if is_postgres() else 0
         with get_lock():
-            db.execute(f"UPDATE rooms SET is_active = 0 WHERE id = {p}", (self.id,))
+            db.execute(f"UPDATE rooms SET is_active = {p} WHERE id = {p}", (val, self.id))
             db.commit()
         self.is_active = False
 
