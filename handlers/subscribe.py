@@ -164,9 +164,10 @@ async def cmd_vip(message: types.Message) -> None:
 
     sub = Subscription.get_by_telegram_id(telegram_id)
     sub.tier = "vip"
-    from datetime import datetime, timedelta
-    sub.started_at = datetime.now().isoformat()
-    sub.expires_at = (datetime.now() + timedelta(days=3650)).isoformat()
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc)
+    sub.started_at = now.isoformat()
+    sub.expires_at = (now + timedelta(days=3650)).isoformat()
     sub.save()
 
     user = User.get_by_telegram_id(telegram_id)

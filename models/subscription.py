@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from services.database import get_db
@@ -59,9 +59,17 @@ class Subscription:
             expires_at=row[4],
             payment_id=row[5],
         )
-        if sub.expires_at and datetime.fromisoformat(sub.expires_at) < datetime.now():
-            sub.tier = "free"
-            sub.save()
+        if sub.expires_at:
+            try:
+                exp = datetime.fromisoformat(sub.expires_at)
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp < datetime.now(timezone.utc):
+                    sub.tier = "free"
+                    sub.expires_at = None
+                    sub.save()
+            except (ValueError, TypeError):
+                pass
         return sub
 
     @property
@@ -87,7 +95,7 @@ class Subscription:
 
     @staticmethod
     def create_paid_subscription(telegram_id: int, tier: str, payment_id: str) -> Subscription:
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         expires = now + timedelta(days=30)
         sub = Subscription(
             telegram_id=telegram_id,
