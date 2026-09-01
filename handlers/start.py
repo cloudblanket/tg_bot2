@@ -671,4 +671,3 @@ async def cmd_stats(message: types.Message) -> None:
 
     msg = await message.answer(text, parse_mode="HTML")
     _last_stats_message_id = msg.message_id
-    await message.delete()
