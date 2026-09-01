@@ -154,7 +154,7 @@ async def callback_no_password(callback: types.CallbackQuery, state: FSMContext)
     room = Room.create(creator_id=callback.from_user.id, title=title, is_public=True)
     room.add_member(callback.from_user.id)
 
-    bot_username = callback.bot.me.username
+    bot_username = (await callback.bot.me()).username
 
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -196,7 +196,7 @@ async def process_room_password(message: types.Message, state: FSMContext) -> No
     room = Room.create(creator_id=message.from_user.id, title=title, password=password, is_public=False)
     room.add_member(message.from_user.id)
 
-    bot_username = message.bot.me.username
+    bot_username = (await message.bot.me()).username
 
     builder = InlineKeyboardBuilder()
     builder.button(
