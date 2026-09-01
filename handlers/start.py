@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from aiogram import Router, types, F
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from models.user import User
@@ -13,21 +15,29 @@ router = Router(name="start")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
 
 
+class CreateRoomState(StatesGroup):
+    waiting_title = State()
+    waiting_password = State()
+
+
+class JoinState(StatesGroup):
+    waiting_code = State()
+
+
+class JoinPasswordState(StatesGroup):
+    waiting_password = State()
+
+
 def main_menu_keyboard() -> types.InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.button(text="🎬 Создать комнату", callback_data="menu:create")
     builder.button(text="🔑 Войти в комнату", callback_data="menu:join")
     builder.button(text="📋 Мои комнаты", callback_data="menu:rooms")
+    builder.button(text="🌐 Смотреть комнаты", callback_data="menu:public_rooms")
     builder.button(text="💳 Подписка", callback_data="menu:subscribe")
     builder.button(text="👤 Профиль", callback_data="menu:profile")
     builder.button(text="❓ Помощь", callback_data="menu:help")
     builder.adjust(1)
-    return builder.as_markup()
-
-
-def back_button(callback_data: str = "menu:main") -> types.InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.button(text="← Назад", callback_data=callback_data)
     return builder.as_markup()
 
 
@@ -47,6 +57,18 @@ async def cmd_start(message: types.Message) -> None:
         room = Room.get_by_code(room_code)
         if room and room.is_active:
             sub = Subscription.get_by_telegram_id(message.from_user.id)
+            if room.password:
+                builder = InlineKeyboardBuilder()
+                builder.button(text="← Назад", callback_data="menu:main")
+                await message.answer(
+                    f"🔒 Комната <code>{room.code}</code> за паролем.\nВведи пароль:",
+                    reply_markup=builder.as_markup(),
+                    parse_mode="HTML",
+                )
+                state = FSMContext()
+                await state.set_state(JoinPasswordState.waiting_password)
+                await state.update_data(room_code=room.code)
+                return
             if room.add_member(message.from_user.id):
                 builder = InlineKeyboardBuilder()
                 builder.button(
@@ -89,9 +111,38 @@ async def callback_main_menu(callback: types.CallbackQuery) -> None:
 
 
 @router.callback_query(F.data == "menu:create")
-async def callback_create(callback: types.CallbackQuery) -> None:
-    from models.room import Room
+async def callback_create(callback: types.CallbackQuery, state: FSMContext) -> None:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+    await callback.message.edit_text(
+        "📝 Введи название комнаты:",
+        reply_markup=builder.as_markup(),
+    )
+    await state.set_state(CreateRoomState.waiting_title)
+    await callback.answer()
 
+
+@router.message(CreateRoomState.waiting_title, F.text)
+async def process_room_title(message: types.Message, state: FSMContext) -> None:
+    await state.update_data(title=message.text.strip()[:50])
+    builder = InlineKeyboardBuilder()
+    builder.button(text="Без пароля", callback_data="create:no_password")
+    builder.button(text="← Назад", callback_data="menu:main")
+    builder.adjust(1)
+    await message.answer(
+        "🔐 Введи пароль для комнаты\n(или нажми «Без пароля»):",
+        reply_markup=builder.as_markup(),
+    )
+    await state.set_state(CreateRoomState.waiting_password)
+
+
+@router.callback_query(F.data == "create:no_password")
+async def callback_no_password(callback: types.CallbackQuery, state: FSMContext) -> None:
+    data = await state.get_data()
+    await state.clear()
+    title = data.get("title", "Киновечер")
+
+    from models.room import Room
     user = User(
         telegram_id=callback.from_user.id,
         username=callback.from_user.username,
@@ -100,8 +151,10 @@ async def callback_create(callback: types.CallbackQuery) -> None:
     user.save()
 
     sub = Subscription.get_by_telegram_id(callback.from_user.id)
-    room = Room.create(creator_id=callback.from_user.id)
+    room = Room.create(creator_id=callback.from_user.id, title=title, is_public=True)
     room.add_member(callback.from_user.id)
+
+    bot_username = callback.bot.me.username
 
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -111,17 +164,59 @@ async def callback_create(callback: types.CallbackQuery) -> None:
     builder.button(text="← Назад", callback_data="menu:main")
     builder.adjust(1)
 
-    bot_username = callback.bot.me.username
-
     await callback.message.edit_text(
         f"🎉 Комната создана!\n\n"
-        f"📌 Код: <code>{room.code}</code>\n"
-        f"👥 Лимит: {sub.max_members} ({sub.tier.upper()})\n"
+        f"📌 Название: <b>{title}</b>\n"
+        f"🔑 Код: <code>{room.code}</code>\n"
+        f"🌐 Тип: Открытая\n"
+        f"👥 Лимит: {sub.max_members} чел.\n\n"
         f"🔗 Пригласи друга:\nhttps://t.me/{bot_username}?start=join_{room.code}",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.message(CreateRoomState.waiting_password, F.text)
+async def process_room_password(message: types.Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    await state.clear()
+    title = data.get("title", "Киновечер")
+    password = message.text.strip()[:30]
+
+    from models.room import Room
+    user = User(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+    )
+    user.save()
+
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+    room = Room.create(creator_id=message.from_user.id, title=title, password=password, is_public=False)
+    room.add_member(message.from_user.id)
+
+    bot_username = message.bot.me.username
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🎬 Открыть киновечер",
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+    )
+    builder.button(text="← Назад", callback_data="menu:main")
+    builder.adjust(1)
+
+    await message.answer(
+        f"🎉 Комната создана!\n\n"
+        f"📌 Название: <b>{title}</b>\n"
+        f"🔑 Код: <code>{room.code}</code>\n"
+        f"🔐 Пароль: <code>{password}</code>\n"
+        f"🌐 Тип: Закрытая\n"
+        f"👥 Лимит: {sub.max_members} чел.\n\n"
+        f"🔗 Пригласи друга:\nhttps://t.me/{bot_username}?start=join_{room.code}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data == "menu:rooms")
@@ -140,8 +235,9 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
     else:
         for room in user_rooms:
             members = room.get_members()
+            lock = "🔒" if room.password else "🌐"
             builder.button(
-                text=f"🚪 {room.title} ({room.code}) — {len(members)} чел.",
+                text=f"{lock} {room.title} — {len(members)} чел.",
                 callback_data=f"room:{room.code}",
             )
         builder.button(text="← Назад", callback_data="menu:main")
@@ -151,6 +247,253 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
             reply_markup=builder.as_markup(),
         )
     await callback.answer()
+
+
+@router.callback_query(F.data == "menu:public_rooms")
+async def callback_public_rooms(callback: types.CallbackQuery) -> None:
+    from models.room import Room
+
+    public_rooms = Room.get_public_rooms()
+    builder = InlineKeyboardBuilder()
+
+    if not public_rooms:
+        builder.button(text="← Назад", callback_data="menu:main")
+        await callback.message.edit_text(
+            "🌐 Пока нет открытых комнат.\nСоздай первую!",
+            reply_markup=builder.as_markup(),
+        )
+    else:
+        for room in public_rooms:
+            members = room.get_members()
+            builder.button(
+                text=f"🚪 {room.title} — {len(members)} чел.",
+                callback_data=f"pubroom:{room.code}",
+            )
+        builder.button(text="← Назад", callback_data="menu:main")
+        builder.adjust(1)
+        await callback.message.edit_text(
+            "🌐 Открытые комнаты:",
+            reply_markup=builder.as_markup(),
+        )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("pubroom:"))
+async def callback_public_room_detail(callback: types.CallbackQuery) -> None:
+    from models.room import Room
+
+    code = callback.data.split(":", 1)[1]
+    room = Room.get_by_code(code)
+    if room is None:
+        await callback.answer("Комната не найдена.", show_alert=True)
+        return
+
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+    members = room.get_members()
+    member_names = ", ".join(
+        m["first_name"] or m["username"] or str(m["telegram_id"]) for m in members
+    )
+    is_member = callback.from_user.id in [m["telegram_id"] for m in members]
+
+    builder = InlineKeyboardBuilder()
+    if is_member:
+        builder.button(
+            text="🎬 Открыть",
+            web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+        )
+    else:
+        builder.button(text="✅ Войти", callback_data=f"pubroom_join:{room.code}")
+    builder.button(text="← Назад", callback_data="menu:public_rooms")
+    builder.adjust(1)
+
+    lock = "🔒 Закрытая" if room.password else "🌐 Открытая"
+    await callback.message.edit_text(
+        f"📌 {room.title} ({room.code})\n"
+        f"🔐 Тип: {lock}\n"
+        f"👥 Участники ({len(members)}): {member_names}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("pubroom_join:"))
+async def callback_public_room_join(callback: types.CallbackQuery, state: FSMContext) -> None:
+    from models.room import Room
+
+    code = callback.data.split(":", 1)[1]
+    room = Room.get_by_code(code)
+    if room is None:
+        await callback.answer("Комната не найдена.", show_alert=True)
+        return
+
+    if room.password:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data=f"pubroom:{room.code}")
+        await callback.message.edit_text(
+            "🔐 Введи пароль комнаты:",
+            reply_markup=builder.as_markup(),
+        )
+        await state.set_state(JoinPasswordState.waiting_password)
+        await state.update_data(room_code=room.code)
+        await callback.answer()
+        return
+
+    sub = Subscription.get_by_telegram_id(callback.from_user.id)
+    if room.add_member(callback.from_user.id):
+        builder = InlineKeyboardBuilder()
+        builder.button(
+            text="🎬 Открыть киновечер",
+            web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+        )
+        builder.button(text="← Назад", callback_data="menu:public_rooms")
+        builder.adjust(1)
+        await callback.message.edit_text(
+            f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML",
+        )
+    else:
+        await callback.answer("⚠️ Комната заполнена.", show_alert=True)
+    await callback.answer()
+
+
+class JoinPasswordState(StatesGroup):
+    waiting_password = State()
+
+
+@router.callback_query(F.data == "menu:join")
+async def callback_join(callback: types.CallbackQuery, state: FSMContext) -> None:
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:main")
+    await callback.message.edit_text(
+        "🔑 Введи код комнаты:",
+        reply_markup=builder.as_markup(),
+    )
+    await state.set_state(JoinState.waiting_code)
+    await callback.answer()
+
+
+@router.message(JoinState.waiting_code, F.text)
+async def process_join_code(message: types.Message, state: FSMContext) -> None:
+    await state.clear()
+    code = message.text.strip()
+
+    user = User(
+        telegram_id=message.from_user.id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name,
+    )
+    user.save()
+
+    room = Room.get_by_code(code) if code else None
+    if room is None:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "❌ Комната не найдена.",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    if not room.is_active:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "❌ Комната закрыта.",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    if room.password:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "🔐 Эта комната за паролем.\nВведи пароль:",
+            reply_markup=builder.as_markup(),
+        )
+        await state.set_state(JoinPasswordState.waiting_password)
+        await state.update_data(room_code=room.code)
+        return
+
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+    if not room.add_member(message.from_user.id):
+        creator_sub = Subscription.get_by_telegram_id(room.creator_id)
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💳 Подписка", callback_data="menu:subscribe")
+        builder.button(text="← Назад", callback_data="menu:main")
+        builder.adjust(1)
+        await message.answer(
+            f"⚠️ Комната заполнена (макс. {creator_sub.max_members} участников).",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🎬 Открыть киновечер",
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+    )
+    builder.button(text="← Назад", callback_data="menu:main")
+    builder.adjust(1)
+
+    await message.answer(
+        f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+
+
+@router.message(JoinPasswordState.waiting_password, F.text)
+async def process_join_password(message: types.Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    await state.clear()
+    room_code = data.get("room_code", "")
+    password = message.text.strip()
+
+    from models.room import Room
+    room = Room.get_by_code(room_code)
+    if room is None or not room.is_active:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer("❌ Комната не найдена.", reply_markup=builder.as_markup())
+        return
+
+    if room.password != password:
+        builder = InlineKeyboardBuilder()
+        builder.button(text="← Назад", callback_data="menu:main")
+        await message.answer(
+            "❌ Неверный пароль.",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    sub = Subscription.get_by_telegram_id(message.from_user.id)
+    if not room.add_member(message.from_user.id):
+        creator_sub = Subscription.get_by_telegram_id(room.creator_id)
+        builder = InlineKeyboardBuilder()
+        builder.button(text="💳 Подписка", callback_data="menu:subscribe")
+        builder.button(text="← Назад", callback_data="menu:main")
+        builder.adjust(1)
+        await message.answer(
+            f"⚠️ Комната заполнена (макс. {creator_sub.max_members} участников).",
+            reply_markup=builder.as_markup(),
+        )
+        return
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🎬 Открыть киновечер",
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+    )
+    builder.button(text="← Назад", callback_data="menu:main")
+    builder.adjust(1)
+
+    await message.answer(
+        f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
 
 
 @router.callback_query(F.data.startswith("room:leave:"))
@@ -199,8 +542,9 @@ async def callback_room(callback: types.CallbackQuery) -> None:
     builder.button(text="← Назад", callback_data="menu:rooms")
     builder.adjust(1)
 
+    lock = "🔒" if room.password else "🌐"
     await callback.message.edit_text(
-        f"📌 {room.title} ({room.code})\n"
+        f"📌 {room.title} ({room.code}) {lock}\n"
         f"👥 Участники ({len(members)}): {member_names}",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
@@ -218,6 +562,10 @@ async def callback_help(callback: types.CallbackQuery) -> None:
         "2️⃣ <b>Пригласи друга</b> — отправь ему код комнаты\n"
         "3️⃣ <b>Друг заходит</b> — нажимает «Войти в комнату» и вводит код\n"
         "4️⃣ <b>Откройте приложение</b> — нажмите «Открыть киновечер»\n\n"
+        "🌐 <b>Открытые комнаты</b>\n"
+        "Нажми «Смотреть комнаты» чтобы найти открытые комнаты.\n\n"
+        "🔒 <b>Закрытые комнаты</b>\n"
+        "При создании выбери пароль — только те кто знает пароль смогут войти.\n\n"
         "🎬 <b>YouTube</b>\n"
         "Вставь ссылку на видео в поле чата в приложении.\n"
         "Пример: https://www.youtube.com/watch?v=dQw4w9WgXcQ\n\n"

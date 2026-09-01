@@ -18,6 +18,8 @@ class Room:
     created_at: Optional[str] = None
     is_active: bool = True
     current_video_id: Optional[int] = None
+    password: Optional[str] = None
+    is_public: bool = True
     id: Optional[int] = field(default=None, repr=False)
 
     def save(self) -> None:
@@ -26,22 +28,27 @@ class Room:
             self.created_at = datetime.utcnow().isoformat()
         cursor = db.execute(
             """
-            INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(code) DO UPDATE SET
                 title = excluded.title,
                 is_active = excluded.is_active,
-                current_video_id = excluded.current_video_id
+                current_video_id = excluded.current_video_id,
+                password = excluded.password,
+                is_public = excluded.is_public
             """,
-            (self.code, self.creator_id, self.title, self.created_at, self.is_active, self.current_video_id),
+            (self.code, self.creator_id, self.title, self.created_at, self.is_active,
+             self.current_video_id, self.password, 1 if self.is_public else 0),
         )
         db.commit()
         self.id = cursor.lastrowid
 
     @classmethod
-    def create(cls, creator_id: int, title: str = "Киновечер") -> Room:
+    def create(cls, creator_id: int, title: str = "Киновечер",
+               password: Optional[str] = None, is_public: bool = True) -> Room:
         code = secrets.token_urlsafe(6)
-        room = cls(code=code, creator_id=creator_id, title=title)
+        room = cls(code=code, creator_id=creator_id, title=title,
+                   password=password, is_public=is_public)
         room.save()
         return room
 
@@ -49,7 +56,7 @@ class Room:
     def get_by_code(cls, code: str) -> Optional[Room]:
         db = get_db()
         row = db.execute(
-            "SELECT id, code, creator_id, title, created_at, is_active, current_video_id FROM rooms WHERE code = ?",
+            "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public FROM rooms WHERE code = ?",
             (code,),
         ).fetchone()
         if row is None:
@@ -62,6 +69,8 @@ class Room:
             created_at=row[4],
             is_active=bool(row[5]),
             current_video_id=row[6],
+            password=row[7],
+            is_public=bool(row[8]),
         )
 
     @classmethod
@@ -69,7 +78,7 @@ class Room:
         db = get_db()
         rows = db.execute(
             """
-            SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id
+            SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id, r.password, r.is_public
             FROM rooms r
             INNER JOIN room_members rm ON r.id = rm.room_id
             WHERE rm.telegram_id = ? AND r.is_active = 1
@@ -85,6 +94,30 @@ class Room:
                 created_at=row[4],
                 is_active=bool(row[5]),
                 current_video_id=row[6],
+                password=row[7],
+                is_public=bool(row[8]),
+            )
+            for row in rows
+        ]
+
+    @classmethod
+    def get_public_rooms(cls) -> list[Room]:
+        db = get_db()
+        rows = db.execute(
+            "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public "
+            "FROM rooms WHERE is_active = 1 AND is_public = 1 ORDER BY created_at DESC LIMIT 20"
+        ).fetchall()
+        return [
+            cls(
+                id=row[0],
+                code=row[1],
+                creator_id=row[2],
+                title=row[3],
+                created_at=row[4],
+                is_active=bool(row[5]),
+                current_video_id=row[6],
+                password=row[7],
+                is_public=bool(row[8]),
             )
             for row in rows
         ]

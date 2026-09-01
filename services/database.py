@@ -86,6 +86,16 @@ def init_tables(db: sqlite3.Connection) -> None:
     try:
         db.execute("ALTER TABLE users ADD COLUMN tier TEXT DEFAULT 'free'")
     except sqlite3.OperationalError:
-        pass  # колонка уже есть
+        pass
+
+    try:
+        db.execute("ALTER TABLE rooms ADD COLUMN password TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        db.execute("ALTER TABLE rooms ADD COLUMN is_public INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass
 
     db.commit()
