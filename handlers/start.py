@@ -755,12 +755,13 @@ async def cmd_stats(message: types.Message) -> None:
         await message.answer("❌ Нет доступа.")
         return
 
-    from services.database import get_db
+    from services.database import get_db, placeholder
     from services.sync import room_states
 
     db = get_db()
+    ph = placeholder()
     total_users = db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-    total_rooms = db.execute("SELECT COUNT(*) FROM rooms WHERE is_active = 1").fetchone()[0]
+    total_rooms = db.execute(f"SELECT COUNT(*) FROM rooms WHERE is_active = {ph}", (1 if ph == '?' else True,)).fetchone()[0]
     total_subs = db.execute("SELECT COUNT(*) FROM subscriptions WHERE tier != 'free'").fetchone()[0]
 
     tier_stats = db.execute(
