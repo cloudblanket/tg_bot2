@@ -118,12 +118,20 @@ async def cmd_start(message: types.Message) -> None:
                 return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="🎬 Открыть КиноВечер",
+        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?tier={sub.tier}"),
+    )
+    builder.button(text="💳 Подписка", callback_data="menu:subscribe")
+    builder.button(text="❓ Помощь", callback_data="menu:help")
+    builder.adjust(1)
     await send_and_track(
         message,
         f"👋 Привет, {message.from_user.first_name}!\n\n"
         f"Я — бот для совместного просмотра видео.\n"
         f"💳 Тариф: <b>{sub.tier.upper()}</b>",
-        reply_markup=main_menu_keyboard(),
+        reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )
 

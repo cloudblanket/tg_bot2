@@ -15,22 +15,28 @@
                 <h1>🎬 Киновечер</h1>
                 <p class="subtitle">Смотри видео вместе с друзьями</p>
             </div>
+            <div class="lobby-tabs">
+                <button class="lobby-tab active" data-tab="public">🌐 Публичные</button>
+                <button class="lobby-tab" data-tab="my">🏠 Мои комнаты</button>
+            </div>
             <div class="lobby-content">
+                <div id="tab-public" class="lobby-tab-content">
+                    <div id="public-rooms-list" class="public-rooms-list">
+                        <p class="loading-text">Загрузка...</p>
+                    </div>
+                </div>
+                <div id="tab-my" class="lobby-tab-content hidden">
+                    <div id="my-rooms-list" class="public-rooms-list">
+                        <p class="loading-text">Загрузка...</p>
+                    </div>
+                </div>
+                <div class="divider"><span>или</span></div>
                 <div class="input-group">
                     <label for="room-code-input">Код комнаты</label>
                     <input type="text" id="room-code-input" placeholder="Введи код комнаты..." maxlength="10">
                 </div>
                 <button id="btn-join" class="btn btn-primary">Присоединиться</button>
-                <div class="divider"><span>или</span></div>
-                <button id="btn-create" class="btn btn-secondary">Создать новую комнату</button>
-
-                <!-- Открытые комнаты -->
-                <div class="public-rooms-section">
-                    <h3>🌐 Открытые комнаты</h3>
-                    <div id="public-rooms-list" class="public-rooms-list">
-                        <p class="loading-text">Загрузка...</p>
-                    </div>
-                </div>
+                <button id="btn-create" class="btn btn-secondary">+ Создать комнату</button>
             </div>
         </div>
 

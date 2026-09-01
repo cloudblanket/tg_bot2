@@ -68,6 +68,34 @@ body {
     font-size: 14px;
 }
 
+.lobby-tabs {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.lobby-tab {
+    flex: 1;
+    padding: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.lobby-tab.active {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.lobby-tab-content.hidden {
+    display: none;
+}
+
 /* Lobby */
 .lobby-content {
     display: flex;

@@ -251,6 +251,65 @@ function addChatMessage(name, text) {
     els.chatModeMessages.scrollTop = els.chatModeMessages.scrollHeight;
 }
 
+// ==========================================
+// LOBBY TABS
+// ==========================================
+
+document.querySelectorAll('.lobby-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.lobby-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.getElementById('tab-public').classList.toggle('hidden', target !== 'public');
+        document.getElementById('tab-my').classList.toggle('hidden', target !== 'my');
+        if (target === 'my') loadMyRooms();
+    });
+});
+
+async function loadMyRooms() {
+    if (!state.userInfo?.id) return;
+    const list = document.getElementById('my-rooms-list');
+    list.innerHTML = '<p class="loading-text">Загрузка...</p>';
+    try {
+        const res = await fetch(`${WEBAPP_URL}/api/rooms/my/${state.userInfo.id}`);
+        const rooms = await res.json();
+        if (!rooms.length) {
+            list.innerHTML = '<p class="empty-text">У тебя нет комнат</p>';
+            return;
+        }
+        list.innerHTML = '';
+        rooms.forEach(r => {
+            const el = document.createElement('div');
+            el.className = 'room-card';
+            el.innerHTML = `
+                <div class="room-card-header">
+                    <span class="room-card-title">${escapeHtml(r.title)}</span>
+                    <span class="badge ${r.is_public ? 'badge-public' : 'badge-private'}">${r.is_public ? '🌐' : '🔒'}</span>
+                </div>
+                <div class="room-card-meta">
+                    <span>👥 ${r.members}</span>
+                    <span class="room-card-code">${r.code}</span>
+                    ${r.is_active ? '<span class="badge badge-active">🟢 Активна</span>' : '<span class="badge badge-inactive">⚪ Неактивна</span>'}
+                </div>
+            `;
+            el.addEventListener('click', () => {
+                if (r.is_active) enterRoom(r.code);
+            });
+            list.appendChild(el);
+        });
+    } catch (e) {
+        list.innerHTML = '<p class="empty-text">Ошибка загрузки</p>';
+    }
+}
+
+function enterRoom(code) {
+    if (!code) return;
+    state.roomCode = code.trim().toUpperCase();
+    state.isFounder = false;
+    showScreen('room');
+    connectWS();
+}
+
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;

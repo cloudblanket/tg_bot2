@@ -162,6 +162,13 @@ async def api_list_rooms():
     return {"rooms": result}
 
 
+@app.get("/api/rooms/my/{user_id}")
+async def api_my_rooms(user_id: int):
+    from models.room import Room
+    rooms = Room.get_user_rooms(user_id)
+    return [{"code": r.code, "title": r.title, "members": r.member_count, "is_public": r.is_public, "is_active": r.is_active} for r in rooms]
+
+
 @app.post("/api/rooms/create")
 async def api_create_room(data: dict):
     from models.room import Room
