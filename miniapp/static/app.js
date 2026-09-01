@@ -28,7 +28,6 @@ const state = {
     userTier: 'free',
     theaterPlayer: null,
     joinPasswordRoom: null,
-    publicRooms: [],
 };
 
 const els = {
@@ -253,90 +252,19 @@ function addChatMessage(name, text) {
 }
 
 // ==========================================
-// LOBBY
+// LOBBY TABS
 // ==========================================
 
-async function loadPublicRooms() {
-    const list = document.getElementById('public-rooms-list');
-    list.innerHTML = '<p class="loading-text">Загрузка...</p>';
-    try {
-        const res = await fetch(`${WEBAPP_URL}/api/rooms`);
-        const rooms = await res.json();
-        state.publicRooms = rooms;
-        renderPublicRooms(rooms);
-    } catch (e) {
-        list.innerHTML = '<p class="empty-text">Ошибка загрузки</p>';
-    }
-}
-
-function renderPublicRooms(rooms) {
-    const list = document.getElementById('public-rooms-list');
-    if (!rooms.length) {
-        list.innerHTML = '<p class="empty-text">Нет открытых комнат</p>';
-        return;
-    }
-    list.innerHTML = '';
-    rooms.forEach(r => {
-        const el = document.createElement('div');
-        el.className = 'room-card';
-        el.innerHTML = `
-            <div class="room-card-header">
-                <span class="room-card-title">${escapeHtml(r.title)}</span>
-                <span class="badge badge-public">🌐</span>
-            </div>
-            <div class="room-card-meta">
-                <span>👥 ${r.members}</span>
-                <span class="room-card-code">${r.code}</span>
-                ${r.has_password ? '<span class="badge badge-lock">🔒</span>' : ''}
-            </div>
-        `;
-        el.addEventListener('click', () => {
-            if (r.has_password) showPasswordModal(r.code);
-            else joinRoomDirect(r.code);
-        });
-        list.appendChild(el);
+document.querySelectorAll('.lobby-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.lobby-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.tab;
+        document.getElementById('tab-public').classList.toggle('hidden', target !== 'public');
+        document.getElementById('tab-my').classList.toggle('hidden', target !== 'my');
+        if (target === 'my') loadMyRooms();
     });
-}
-
-document.getElementById('rooms-search')?.addEventListener('input', (e) => {
-    const q = e.target.value.toLowerCase().trim();
-    if (!q) {
-        renderPublicRooms(state.publicRooms || []);
-        return;
-    }
-    const filtered = (state.publicRooms || []).filter(r => r.title.toLowerCase().includes(q));
-    renderPublicRooms(filtered);
 });
-
-function showPasswordModal(code) {
-    state.joinPasswordRoom = code;
-    document.getElementById('password-modal').classList.remove('hidden');
-    document.getElementById('password-input').value = '';
-    document.getElementById('password-input').focus();
-}
-
-async function joinRoomDirect(code) {
-    if (!state.userInfo?.id) return;
-    try {
-        const res = await fetch(`${WEBAPP_URL}/api/rooms/join`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_id: state.userInfo.id, code }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-            state.roomCode = code;
-            state.isFounder = false;
-            state.userTier = data.tier || state.userTier;
-            showScreen('room');
-            connectWS();
-        } else {
-            alert(data.error || 'Не удалось войти');
-        }
-    } catch (e) {
-        alert('Ошибка сети');
-    }
-}
 
 async function loadMyRooms() {
     if (!state.userInfo?.id) return;
@@ -361,11 +289,11 @@ async function loadMyRooms() {
                 <div class="room-card-meta">
                     <span>👥 ${r.members}</span>
                     <span class="room-card-code">${r.code}</span>
-                    ${r.is_active ? '<span class="badge badge-active">🟢</span>' : '<span class="badge badge-inactive">⚪</span>'}
+                    ${r.is_active ? '<span class="badge badge-active">🟢 Активна</span>' : '<span class="badge badge-inactive">⚪ Неактивна</span>'}
                 </div>
             `;
             el.addEventListener('click', () => {
-                if (r.is_active) joinRoomDirect(r.code);
+                if (r.is_active) enterRoom(r.code);
             });
             list.appendChild(el);
         });
@@ -762,10 +690,6 @@ document.getElementById('btn-personalize')?.addEventListener('click', () => {
     document.getElementById('personalize-modal').classList.remove('hidden');
 });
 
-document.getElementById('btn-lobby-personalize')?.addEventListener('click', () => {
-    document.getElementById('personalize-modal').classList.remove('hidden');
-});
-
 document.getElementById('btn-close-personalize')?.addEventListener('click', () => {
     document.getElementById('personalize-modal').classList.add('hidden');
     savePersonalizationToServer();
@@ -1080,11 +1004,7 @@ function init() {
     if (tg?.initDataUnsafe?.user) state.userInfo = tg.initDataUnsafe.user;
     applyTierFeatures();
     loadPersonalizationFromServer();
-    if (state.userTier === 'vip') {
-        document.getElementById('lobby-personalize').style.display = '';
-    }
-    loadPublicRooms();
-    loadMyRooms();
+    if (!state.roomCode) loadPublicRooms();
 }
 
 function applyTierFeatures() {

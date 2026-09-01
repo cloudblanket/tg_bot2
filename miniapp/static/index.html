@@ -15,38 +15,28 @@
                 <h1>🎬 Киновечер</h1>
                 <p class="subtitle">Смотри видео вместе с друзьями</p>
             </div>
-
-            <!-- Персонализация (VIP) -->
-            <div id="lobby-personalize" class="lobby-section" style="display:none">
-                <button id="btn-lobby-personalize" class="btn btn-secondary btn-full">⚙️ Персонализация</button>
+            <div class="lobby-tabs">
+                <button class="lobby-tab active" data-tab="public">🌐 Публичные</button>
+                <button class="lobby-tab" data-tab="my">🏠 Мои комнаты</button>
             </div>
-
-            <!-- Действия -->
-            <div class="lobby-actions-main">
-                <button id="btn-create" class="btn btn-primary">+ Создать комнату</button>
-                <div class="input-group row">
-                    <input type="text" id="room-code-input" placeholder="Код комнаты..." maxlength="10">
-                    <button id="btn-join" class="btn btn-primary">Войти</button>
+            <div class="lobby-content">
+                <div id="tab-public" class="lobby-tab-content">
+                    <div id="public-rooms-list" class="public-rooms-list">
+                        <p class="loading-text">Загрузка...</p>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Публичные комнаты -->
-            <div class="lobby-section">
-                <div class="lobby-section-header">
-                    <h3>🌐 Публичные комнаты</h3>
-                    <input type="text" id="rooms-search" placeholder="Поиск..." class="rooms-search-input">
+                <div id="tab-my" class="lobby-tab-content hidden">
+                    <div id="my-rooms-list" class="public-rooms-list">
+                        <p class="loading-text">Загрузка...</p>
+                    </div>
                 </div>
-                <div id="public-rooms-list" class="public-rooms-list">
-                    <p class="loading-text">Загрузка...</p>
+                <div class="divider"><span>или</span></div>
+                <div class="input-group">
+                    <label for="room-code-input">Код комнаты</label>
+                    <input type="text" id="room-code-input" placeholder="Введи код комнаты..." maxlength="10">
                 </div>
-            </div>
-
-            <!-- Мои комнаты -->
-            <div class="lobby-section">
-                <h3>🏠 Мои комнаты</h3>
-                <div id="my-rooms-list" class="public-rooms-list">
-                    <p class="loading-text">Загрузка...</p>
-                </div>
+                <button id="btn-join" class="btn btn-primary">Присоединиться</button>
+                <button id="btn-create" class="btn btn-secondary">+ Создать комнату</button>
             </div>
         </div>
 

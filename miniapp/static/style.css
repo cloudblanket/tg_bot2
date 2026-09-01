@@ -68,50 +68,32 @@ body {
     font-size: 14px;
 }
 
-.lobby-section {
-    margin-bottom: 20px;
-}
-
-.lobby-section h3 {
-    font-size: 15px;
-    margin-bottom: 10px;
-}
-
-.lobby-section-header {
+.lobby-tabs {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+    gap: 8px;
+    margin: 16px 0;
 }
 
-.lobby-section-header h3 {
-    margin-bottom: 0;
-}
-
-.rooms-search-input {
-    padding: 6px 10px;
+.lobby-tab {
+    flex: 1;
+    padding: 10px;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
-    color: var(--text-primary);
-    font-size: 12px;
-    width: 120px;
-    outline: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
 }
 
-.rooms-search-input:focus {
+.lobby-tab.active {
+    background: var(--accent);
+    color: white;
     border-color: var(--accent);
 }
 
-.lobby-actions-main {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.btn-full {
-    width: 100%;
+.lobby-tab-content.hidden {
+    display: none;
 }
 
 /* Lobby */
