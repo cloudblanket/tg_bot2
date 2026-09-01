@@ -251,6 +251,53 @@ async def api_close_room(data: dict):
     return {"status": "closed"}
 
 
+@app.get("/api/personalize/{user_id}")
+async def api_get_personalization(user_id: int):
+    from services.database import get_db
+    db = get_db()
+    row = db.execute(
+        "SELECT bg_url, bg_color, font_name, accent_color, border_radius FROM personalization WHERE telegram_id = ?",
+        (user_id,),
+    ).fetchone()
+    if row is None:
+        return {"bg_url": "", "bg_color": "", "font_name": "", "accent_color": "", "border_radius": ""}
+    return {
+        "bg_url": row[0] or "",
+        "bg_color": row[1] or "",
+        "font_name": row[2] or "",
+        "accent_color": row[3] or "",
+        "border_radius": row[4] or "",
+    }
+
+
+@app.post("/api/personalize/{user_id}")
+async def api_save_personalization(user_id: int, data: dict):
+    from services.database import get_db
+    db = get_db()
+    db.execute(
+        """
+        INSERT INTO personalization (telegram_id, bg_url, bg_color, font_name, accent_color, border_radius)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(telegram_id) DO UPDATE SET
+            bg_url = excluded.bg_url,
+            bg_color = excluded.bg_color,
+            font_name = excluded.font_name,
+            accent_color = excluded.accent_color,
+            border_radius = excluded.border_radius
+        """,
+        (
+            user_id,
+            data.get("bg_url", ""),
+            data.get("bg_color", ""),
+            data.get("font_name", ""),
+            data.get("accent_color", ""),
+            data.get("border_radius", ""),
+        ),
+    )
+    db.commit()
+    return {"status": "ok"}
+
+
 # Статические файлы
 import os
 from pathlib import Path

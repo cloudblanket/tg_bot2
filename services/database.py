@@ -98,4 +98,17 @@ def init_tables(db: sqlite3.Connection) -> None:
     except sqlite3.OperationalError:
         pass
 
+    db.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS personalization (
+            telegram_id INTEGER PRIMARY KEY,
+            bg_url TEXT,
+            bg_color TEXT,
+            font_name TEXT,
+            accent_color TEXT,
+            border_radius TEXT
+        );
+        """
+    )
+
     db.commit()

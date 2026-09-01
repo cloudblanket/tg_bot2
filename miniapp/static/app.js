@@ -538,26 +538,106 @@ els.btnTheme?.addEventListener('click', () => {
 });
 
 // ==========================================
-// PERSONALIZATION (VIP)
+// PERSONALIZATION (VIP) — Server-side
 // ==========================================
 
-function loadPersonalization() {
-    const saved = JSON.parse(localStorage.getItem('kinovecher-personalize') || '{}');
-    if (saved.font) document.body.style.fontFamily = saved.font;
-    if (saved.bg) document.body.style.backgroundColor = saved.bg;
-    if (saved.accent) document.documentElement.style.setProperty('--accent', saved.accent);
-    if (saved.radius) document.documentElement.style.setProperty('--radius', saved.radius);
+let personalizationLoaded = false;
+
+async function loadPersonalizationFromServer() {
+    if (!state.userInfo?.id) return;
+    try {
+        const res = await fetch(`${WEBAPP_URL}/api/personalize/${state.userInfo.id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        applyPersonalization(data);
+        highlightActiveButtons(data);
+        personalizationLoaded = true;
+    } catch (e) {
+        console.error('Failed to load personalization:', e);
+    }
 }
 
-function savePersonalization(data) {
-    const current = JSON.parse(localStorage.getItem('kinovecher-personalize') || '{}');
-    const merged = { ...current, ...data };
-    localStorage.setItem('kinovecher-personalize', JSON.stringify(merged));
-    if (data.font) document.body.style.fontFamily = data.font;
-    if (data.bg) document.body.style.backgroundColor = data.bg;
-    if (data.accent) document.documentElement.style.setProperty('--accent', data.accent);
-    if (data.radius) document.documentElement.style.setProperty('--radius', data.radius);
+function applyPersonalization(data) {
+    if (data.font_name) {
+        document.body.style.fontFamily = `'${data.font_name}', sans-serif`;
+        loadGoogleFont(data.font_name);
+    }
+    if (data.bg_url) {
+        document.body.style.background = `url('${data.bg_url}') center/cover fixed`;
+    } else if (data.bg_color) {
+        document.body.style.background = data.bg_color;
+    }
+    if (data.accent_color) {
+        document.documentElement.style.setProperty('--accent', data.accent_color);
+    }
+    if (data.border_radius) {
+        document.documentElement.style.setProperty('--radius', data.border_radius);
+    }
 }
+
+function highlightActiveButtons(data) {
+    document.querySelectorAll('.bg-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.bg === (data.bg_url || ''));
+    });
+    document.querySelectorAll('.font-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.font === (data.font_name || ''));
+    });
+    document.querySelectorAll('.accent-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.accent === (data.accent_color || ''));
+    });
+    document.querySelectorAll('.radius-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.radius === (data.border_radius || ''));
+    });
+    const urlInput = document.getElementById('bg-url-input');
+    if (urlInput) urlInput.value = data.bg_url || '';
+}
+
+function loadGoogleFont(name) {
+    if (!name || document.querySelector(`link[href*="family=${name.replace(/ /g, '+')}"]`)) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?family=${name.replace(/ /g, '+')}:wght@400;600;700&display=swap`;
+    document.head.appendChild(link);
+}
+
+function getCurrentPersonalization() {
+    const activeBg = document.querySelector('.bg-btn.active');
+    const bgUrl = document.getElementById('bg-url-input')?.value.trim() || activeBg?.dataset.bg || '';
+    const activeFont = document.querySelector('.font-btn.active');
+    const activeAccent = document.querySelector('.accent-btn.active');
+    const activeRadius = document.querySelector('.radius-btn.active');
+    return {
+        bg_url: bgUrl,
+        bg_color: '',
+        font_name: activeFont?.dataset.font || '',
+        accent_color: activeAccent?.dataset.accent || '',
+        border_radius: activeRadius?.dataset.radius || '',
+    };
+}
+
+async function savePersonalizationToServer() {
+    if (!state.userInfo?.id) return;
+    const data = getCurrentPersonalization();
+    applyPersonalization(data);
+    try {
+        await fetch(`${WEBAPP_URL}/api/personalize/${state.userInfo.id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+    } catch (e) {
+        console.error('Failed to save personalization:', e);
+    }
+}
+
+document.querySelectorAll('.bg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('bg-url-input').value = '';
+        tg?.HapticFeedback?.impactOccurred('light');
+    });
+});
 
 document.getElementById('btn-personalize')?.addEventListener('click', () => {
     els.themeModal.classList.add('hidden');
@@ -566,41 +646,48 @@ document.getElementById('btn-personalize')?.addEventListener('click', () => {
 
 document.getElementById('btn-close-personalize')?.addEventListener('click', () => {
     document.getElementById('personalize-modal').classList.add('hidden');
+    savePersonalizationToServer();
 });
 
 document.querySelectorAll('.font-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        const fonts = { default: '', serif: 'Georgia, serif', mono: 'monospace', cursive: 'cursive' };
-        savePersonalization({ font: fonts[btn.dataset.font] || '' });
+        loadGoogleFont(btn.dataset.font);
         document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
     });
 });
 
-document.querySelectorAll('.color-btn:not(.accent-btn)').forEach(btn => {
-    btn.addEventListener('click', () => {
-        savePersonalization({ bg: btn.dataset.bg });
-    });
-});
-
 document.querySelectorAll('.accent-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        savePersonalization({ accent: btn.dataset.accent });
+        document.documentElement.style.setProperty('--accent', btn.dataset.accent);
+        document.querySelectorAll('.accent-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
     });
 });
 
 document.querySelectorAll('.radius-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-        savePersonalization({ radius: btn.dataset.radius });
+        document.documentElement.style.setProperty('--radius', btn.dataset.radius);
+        document.querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
     });
 });
 
 document.getElementById('btn-reset-personalize')?.addEventListener('click', () => {
-    localStorage.removeItem('kinovecher-personalize');
     document.body.style.fontFamily = '';
-    document.body.style.backgroundColor = '';
+    document.body.style.background = '';
     document.documentElement.style.setProperty('--accent', '#6c5ce7');
     document.documentElement.style.setProperty('--radius', '12px');
+    document.getElementById('bg-url-input').value = '';
+    document.querySelectorAll('.bg-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.bg-btn')?.classList.add('active');
+    document.querySelectorAll('.font-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.font-btn')?.classList.add('active');
+    document.querySelectorAll('.accent-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.accent-btn')?.classList.add('active');
+    document.querySelectorAll('.radius-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.radius-btn[data-radius="12px"]')?.classList.add('active');
+    savePersonalizationToServer();
 });
 
 // ==========================================
@@ -867,12 +954,12 @@ function init() {
     loadYouTubeAPI();
     loadTwitchAPI();
     loadSavedTheme();
-    loadPersonalization();
     const savedTier = localStorage.getItem('kinovecher-tier');
     if (savedTier) state.userTier = savedTier;
     initFromUrl();
     if (tg?.initDataUnsafe?.user) state.userInfo = tg.initDataUnsafe.user;
     applyTierFeatures();
+    loadPersonalizationFromServer();
     if (!state.roomCode) loadPublicRooms();
 }
 
