@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, File, UploadFile, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from starlette.middleware.cors import CORSMiddleware
@@ -344,6 +344,33 @@ async def view_video(filename: str):
 
     asyncio.create_task(delete_after_view())
     return resp
+
+
+@app.post("/api/upload")
+async def api_upload_video(
+    file: UploadFile = File(...),
+    user_id: int = Form(...),
+    room_code: str = Form(""),
+):
+    from models.subscription import Subscription
+
+    sub = Subscription.get_by_telegram_id(user_id)
+    if not sub or not sub.can_upload_video():
+        return JSONResponse({"error": "Только для VIP"}, status_code=403)
+
+    content = await file.read()
+    max_size = 350 * 1024 * 1024
+    if len(content) > max_size:
+        return JSONResponse({"error": "Файл слишком большой (макс 350 МБ)"}, status_code=400)
+
+    ext = Path(file.filename or "video.mp4").suffix or ".mp4"
+    filename = f"{uuid.uuid4()}{ext}"
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = UPLOAD_DIR / filename
+    file_path.write_bytes(content)
+
+    url = f"/view/{filename}"
+    return {"ok": True, "url": url, "filename": filename}
 
 
 if __name__ == "__main__":

@@ -132,9 +132,21 @@
             <!-- Загрузка -->
             <div id="tab-content-upload" class="tab-content">
                 <div class="upload-section">
-                    <p>📤 Отправь видео боту в Telegram (/upload), и оно появится здесь.</p>
+                    <div class="upload-area" id="upload-area">
+                        <span class="upload-icon">📤</span>
+                        <p>Нажми или перетащи видео</p>
+                        <p class="upload-hint">до 350 МБ • MP4, MOV, AVI</p>
+                        <input type="file" id="upload-input" accept="video/*" hidden>
+                    </div>
+                    <div id="upload-progress" class="upload-progress hidden">
+                        <div class="upload-progress-bar">
+                            <div class="upload-progress-fill" id="upload-progress-fill"></div>
+                        </div>
+                        <p id="upload-status" class="upload-status">Загрузка...</p>
+                    </div>
                     <div id="uploaded-videos" class="video-list"></div>
                 </div>
+            </div>
             </div>
 
             <!-- Участники -->

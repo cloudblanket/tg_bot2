@@ -994,6 +994,101 @@ function initFromUrl() {
     if (roomCode) enterRoom(roomCode);
 }
 
+// ==========================================
+// UPLOAD
+// ==========================================
+
+const uploadArea = document.getElementById('upload-area');
+const uploadInput = document.getElementById('upload-input');
+const uploadProgress = document.getElementById('upload-progress');
+const uploadProgressFill = document.getElementById('upload-progress-fill');
+const uploadStatus = document.getElementById('upload-status');
+
+uploadArea?.addEventListener('click', () => uploadInput?.click());
+
+uploadArea?.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = 'rgba(99, 102, 241, 0.6)';
+    uploadArea.style.background = 'rgba(99, 102, 241, 0.08)';
+});
+
+uploadArea?.addEventListener('dragleave', () => {
+    uploadArea.style.borderColor = '';
+    uploadArea.style.background = '';
+});
+
+uploadArea?.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadArea.style.borderColor = '';
+    uploadArea.style.background = '';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('video/')) uploadFile(file);
+});
+
+uploadInput?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) uploadFile(file);
+});
+
+async function uploadFile(file) {
+    if (!state.userInfo?.id) return;
+    if (file.size > 350 * 1024 * 1024) {
+        alert('Файл слишком большой (макс 350 МБ)');
+        return;
+    }
+
+    uploadProgress.classList.remove('hidden');
+    uploadProgressFill.style.width = '0%';
+    uploadStatus.textContent = `Загрузка ${file.name}...`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('user_id', state.userInfo.id);
+    formData.append('room_code', state.roomCode || '');
+
+    try {
+        const xhr = new XMLHttpRequest();
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const pct = Math.round((e.loaded / e.total) * 100);
+                uploadProgressFill.style.width = pct + '%';
+                uploadStatus.textContent = `Загрузка ${pct}%`;
+            }
+        });
+
+        await new Promise((resolve, reject) => {
+            xhr.onload = () => {
+                if (xhr.status === 200) resolve(JSON.parse(xhr.responseText));
+                else reject(new Error(xhr.responseText));
+            };
+            xhr.onerror = () => reject(new Error('Network error'));
+            xhr.open('POST', `${WEBAPP_URL}/api/upload`);
+            xhr.send(formData);
+        });
+
+        uploadStatus.textContent = 'Готово!';
+        uploadProgressFill.style.width = '100%';
+        setTimeout(() => uploadProgress.classList.add('hidden'), 1500);
+        uploadInput.value = '';
+        loadUploadedVideos();
+    } catch (e) {
+        uploadStatus.textContent = 'Ошибка: ' + (e.message || 'неизвестная');
+        uploadProgressFill.style.width = '0%';
+    }
+}
+
+async function loadUploadedVideos() {
+    const list = document.getElementById('uploaded-videos');
+    if (!list) return;
+    list.innerHTML = '<p class="loading-text">Загрузка...</p>';
+    try {
+        const res = await fetch(`${WEBAPP_URL}/api/rooms/my/${state.userInfo?.id || 0}`);
+        list.innerHTML = '';
+    } catch (e) {
+        list.innerHTML = '';
+    }
+}
+
 function init() {
     loadYouTubeAPI();
     loadTwitchAPI();
