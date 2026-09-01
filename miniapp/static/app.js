@@ -62,6 +62,7 @@ const els = {
     tabTwitch: document.getElementById('tab-twitch'),
     tabUpload: document.getElementById('tab-upload'),
     btnTheme: document.getElementById('btn-theme'),
+    btnCloseRoom: document.getElementById('btn-close-room'),
     btnFullscreen: document.getElementById('btn-fullscreen'),
     btnTwitchFullscreen: document.getElementById('btn-twitch-fullscreen'),
     twitchChannelInput: document.getElementById('twitch-channel-input'),
@@ -690,6 +691,8 @@ els.btnBack.addEventListener('click', () => {
     loadPublicRooms();
 });
 
+els.btnCloseRoom?.addEventListener('click', closeRoom);
+
 els.btnPlayPause.addEventListener('click', () => {
     if (!state.playerReady) return;
     tg?.HapticFeedback?.impactOccurred('medium');
@@ -746,6 +749,35 @@ function enterRoom(roomCode, roomTitle) {
     showScreen(els.screenRoom);
     wsConnect(roomCode);
     tg?.HapticFeedback?.notificationOccurred('success');
+}
+
+async function closeRoom() {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId || !state.roomCode) return;
+
+    if (!confirm('Закрыть комнату? Все участники будут отключены.')) return;
+
+    try {
+        const resp = await fetch(`${API_BASE}/api/rooms/close`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, code: state.roomCode }),
+        });
+        const data = await resp.json();
+
+        if (!resp.ok) {
+            alert(data.error || 'Ошибка');
+            return;
+        }
+
+        if (state.ws) state.ws.close();
+        state.roomCode = null;
+        showScreen(els.screenLobby);
+        loadPublicRooms();
+        tg?.HapticFeedback?.notificationOccurred('success');
+    } catch (e) {
+        alert('Ошибка закрытия комнаты');
+    }
 }
 
 // ==========================================

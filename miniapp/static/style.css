@@ -163,6 +163,10 @@ input[type="text"]::placeholder {
     padding: 8px;
 }
 
+.btn-icon.btn-danger {
+    color: var(--danger);
+}
+
 .divider {
     text-align: center;
     color: var(--text-secondary);

@@ -539,6 +539,11 @@ async def callback_room(callback: types.CallbackQuery) -> None:
         text="🚪 Выйти",
         callback_data=f"room:leave:{room.code}",
     )
+    if callback.from_user.id == room.creator_id:
+        builder.button(
+            text="🗑 Закрыть комнату",
+            callback_data=f"room:close:{room.code}",
+        )
     builder.button(text="← Назад", callback_data="menu:rooms")
     builder.adjust(1)
 
@@ -550,6 +555,31 @@ async def callback_room(callback: types.CallbackQuery) -> None:
         parse_mode="HTML",
     )
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith("room:close:"))
+async def callback_close_room(callback: types.CallbackQuery) -> None:
+    from models.room import Room
+
+    code = callback.data.split(":", 2)[2]
+    room = Room.get_by_code(code)
+    if room is None:
+        await callback.answer("Комната не найдена.", show_alert=True)
+        return
+
+    if callback.from_user.id != room.creator_id:
+        await callback.answer("Только создатель может закрыть комнату.", show_alert=True)
+        return
+
+    room.deactivate()
+    builder = InlineKeyboardBuilder()
+    builder.button(text="← Назад", callback_data="menu:rooms")
+    await callback.message.edit_text(
+        f"🗑 Комната <code>{code}</code> закрыта.",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await callback.answer("Комната закрыта.", show_alert=True)
 
 
 @router.callback_query(F.data == "menu:help")

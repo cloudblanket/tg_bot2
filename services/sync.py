@@ -230,6 +230,27 @@ async def api_join_room(data: dict):
     }
 
 
+@app.post("/api/rooms/close")
+async def api_close_room(data: dict):
+    from models.room import Room
+
+    user_id = data.get("user_id")
+    code = data.get("code", "")
+
+    if not user_id:
+        return JSONResponse({"error": "user_id required"}, status_code=400)
+
+    room = Room.get_by_code(code)
+    if not room:
+        return JSONResponse({"error": "Room not found"}, status_code=404)
+
+    if room.creator_id != user_id:
+        return JSONResponse({"error": "Only creator can close"}, status_code=403)
+
+    room.deactivate()
+    return {"status": "closed"}
+
+
 # Статические файлы
 import os
 from pathlib import Path
