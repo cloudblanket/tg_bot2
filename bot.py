@@ -54,8 +54,8 @@ async def main() -> None:
     dp = Dispatcher(storage=MemoryStorage())
 
     @dp.error()
-    async def error_handler(event, exception):
-        logger.error("Handler error: %s", exception, exc_info=True)
+    async def error_handler(event):
+        logger.error("Handler error: %s", event.exception, exc_info=True)
 
     dp.include_router(start_router)
     dp.include_router(room_router)

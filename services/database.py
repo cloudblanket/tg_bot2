@@ -42,7 +42,6 @@ if _use_postgres:
 
     def init_tables_pg(db):
         cur = db.cursor()
-        cur.executescript = lambda sql: cur.execute(sql) if not sql.strip().startswith("--") else None
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
