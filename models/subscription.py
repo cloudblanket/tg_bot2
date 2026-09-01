@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from services.database import get_db, get_lock
+from services.database import get_db, get_lock, placeholder
 
 TIERS = {
     "free": {"name": "Free", "price": 0, "price_stars": 0, "max_members": 2, "features": ["YouTube"]},
@@ -25,13 +25,14 @@ class Subscription:
 
     def save(self) -> None:
         db = get_db()
+        p = placeholder()
         with get_lock():
             if self.started_at is None:
                 self.started_at = datetime.now(timezone.utc).isoformat()
             db.execute(
-                """
+                f"""
                 INSERT INTO subscriptions (telegram_id, tier, started_at, expires_at, payment_id)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES ({p}, {p}, {p}, {p}, {p})
                 ON CONFLICT(telegram_id) DO UPDATE SET
                     tier = excluded.tier,
                     started_at = excluded.started_at,
@@ -45,8 +46,9 @@ class Subscription:
     @classmethod
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[Subscription]:
         db = get_db()
+        p = placeholder()
         row = db.execute(
-            "SELECT id, telegram_id, tier, started_at, expires_at, payment_id FROM subscriptions WHERE telegram_id = ?",
+            f"SELECT id, telegram_id, tier, started_at, expires_at, payment_id FROM subscriptions WHERE telegram_id = {p}",
             (telegram_id,),
         ).fetchone()
         if row is None:

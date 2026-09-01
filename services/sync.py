@@ -292,10 +292,11 @@ async def api_close_room(data: dict):
 
 @app.get("/api/personalize/{user_id}")
 async def api_get_personalization(user_id: int):
-    from services.database import get_db
+    from services.database import get_db, placeholder
     db = get_db()
+    p = placeholder()
     row = db.execute(
-        "SELECT bg_url, bg_color, font_name, accent_color, border_radius FROM personalization WHERE telegram_id = ?",
+        f"SELECT bg_url, bg_color, font_name, accent_color, border_radius FROM personalization WHERE telegram_id = {p}",
         (user_id,),
     ).fetchone()
     if row is None:
@@ -311,24 +312,53 @@ async def api_get_personalization(user_id: int):
 
 @app.post("/api/personalize/{user_id}")
 async def api_save_personalization(user_id: int, data: dict):
-    from services.database import get_db
+    from services.database import get_db, placeholder, is_postgres
     db = get_db()
-    db.execute(
-        """
-        INSERT INTO personalization (telegram_id, bg_url, bg_color, font_name, accent_color, border_radius)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(telegram_id) DO UPDATE SET
-            bg_url = excluded.bg_url,
-            bg_color = excluded.bg_color,
-            font_name = excluded.font_name,
-            accent_color = excluded.accent_color,
-            border_radius = excluded.border_radius
-        """,
-        (
-            user_id,
-            data.get("bg_url", ""),
-            data.get("bg_color", ""),
-            data.get("font_name", ""),
+    p = placeholder()
+    if is_postgres():
+        db.execute(
+            f"""
+            INSERT INTO personalization (telegram_id, bg_url, bg_color, font_name, accent_color, border_radius)
+            VALUES ({p}, {p}, {p}, {p}, {p}, {p})
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                bg_url = excluded.bg_url,
+                bg_color = excluded.bg_color,
+                font_name = excluded.font_name,
+                accent_color = excluded.accent_color,
+                border_radius = excluded.border_radius
+            """,
+            (
+                user_id,
+                data.get("bg_url", ""),
+                data.get("bg_color", ""),
+                data.get("font_name", ""),
+                data.get("accent_color", ""),
+                data.get("border_radius", ""),
+            ),
+        )
+    else:
+        db.execute(
+            f"""
+            INSERT INTO personalization (telegram_id, bg_url, bg_color, font_name, accent_color, border_radius)
+            VALUES ({p}, {p}, {p}, {p}, {p}, {p})
+            ON CONFLICT(telegram_id) DO UPDATE SET
+                bg_url = excluded.bg_url,
+                bg_color = excluded.bg_color,
+                font_name = excluded.font_name,
+                accent_color = excluded.accent_color,
+                border_radius = excluded.border_radius
+            """,
+            (
+                user_id,
+                data.get("bg_url", ""),
+                data.get("bg_color", ""),
+                data.get("font_name", ""),
+                data.get("accent_color", ""),
+                data.get("border_radius", ""),
+            ),
+        )
+    db.commit()
+    return {"status": "ok"}
             data.get("accent_color", ""),
             data.get("border_radius", ""),
         ),

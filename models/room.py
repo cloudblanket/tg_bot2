@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import secrets
-import sqlite3
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from services.database import get_db, get_lock
+from services.database import get_db, get_lock, placeholder, is_postgres
 from models.subscription import Subscription
 
 
@@ -14,7 +13,7 @@ from models.subscription import Subscription
 class Room:
     code: str
     creator_id: int
-    title: str = "Киновечер"
+    title: str = "абсолют синема"
     created_at: Optional[str] = None
     is_active: bool = True
     current_video_id: Optional[int] = None
@@ -24,28 +23,48 @@ class Room:
 
     def save(self) -> None:
         db = get_db()
+        p = placeholder()
         with get_lock():
             if self.created_at is None:
                 self.created_at = datetime.utcnow().isoformat()
-            cursor = db.execute(
-                """
-                INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(code) DO UPDATE SET
-                    title = excluded.title,
-                    is_active = excluded.is_active,
-                    current_video_id = excluded.current_video_id,
-                    password = excluded.password,
-                    is_public = excluded.is_public
-                """,
-                (self.code, self.creator_id, self.title, self.created_at, self.is_active,
-                 self.current_video_id, self.password, 1 if self.is_public else 0),
-            )
+            if is_postgres():
+                cursor = db.execute(
+                    f"""
+                    INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
+                    ON CONFLICT(code) DO UPDATE SET
+                        title = excluded.title,
+                        is_active = excluded.is_active,
+                        current_video_id = excluded.current_video_id,
+                        password = excluded.password,
+                        is_public = excluded.is_public
+                    RETURNING id
+                    """,
+                    (self.code, self.creator_id, self.title, self.created_at, self.is_active,
+                     self.current_video_id, self.password, self.is_public),
+                )
+                row = cursor.fetchone()
+                self.id = row[0] if row else None
+            else:
+                cursor = db.execute(
+                    f"""
+                    INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
+                    VALUES ({p}, {p}, {p}, {p}, {p}, {p}, {p}, {p})
+                    ON CONFLICT(code) DO UPDATE SET
+                        title = excluded.title,
+                        is_active = excluded.is_active,
+                        current_video_id = excluded.current_video_id,
+                        password = excluded.password,
+                        is_public = excluded.is_public
+                    """,
+                    (self.code, self.creator_id, self.title, self.created_at, self.is_active,
+                     self.current_video_id, self.password, 1 if self.is_public else 0),
+                )
+                self.id = cursor.lastrowid
             db.commit()
-            self.id = cursor.lastrowid
 
     @classmethod
-    def create(cls, creator_id: int, title: str = "Киновечер",
+    def create(cls, creator_id: int, title: str = "абсолют синема",
                password: Optional[str] = None, is_public: bool = True) -> Room:
         code = secrets.token_urlsafe(6)
         room = cls(code=code, creator_id=creator_id, title=title,
@@ -56,8 +75,9 @@ class Room:
     @classmethod
     def get_by_code(cls, code: str) -> Optional[Room]:
         db = get_db()
+        p = placeholder()
         row = db.execute(
-            "SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public FROM rooms WHERE code = ?",
+            f"SELECT id, code, creator_id, title, created_at, is_active, current_video_id, password, is_public FROM rooms WHERE code = {p}",
             (code,),
         ).fetchone()
         if row is None:
@@ -77,12 +97,13 @@ class Room:
     @classmethod
     def get_user_rooms(cls, telegram_id: int) -> list[Room]:
         db = get_db()
+        p = placeholder()
         rows = db.execute(
-            """
+            f"""
             SELECT r.id, r.code, r.creator_id, r.title, r.created_at, r.is_active, r.current_video_id, r.password, r.is_public
             FROM rooms r
             INNER JOIN room_members rm ON r.id = rm.room_id
-            WHERE rm.telegram_id = ? AND r.is_active = 1
+            WHERE rm.telegram_id = {p} AND r.is_active = 1
             """,
             (telegram_id,),
         ).fetchall()
@@ -125,12 +146,13 @@ class Room:
 
     def get_members(self) -> list[dict]:
         db = get_db()
+        p = placeholder()
         rows = db.execute(
-            """
+            f"""
             SELECT rm.telegram_id, u.username, u.first_name, rm.joined_at
             FROM room_members rm
             LEFT JOIN users u ON rm.telegram_id = u.telegram_id
-            WHERE rm.room_id = ?
+            WHERE rm.room_id = {p}
             """,
             (self.id,),
         ).fetchall()
@@ -141,8 +163,9 @@ class Room:
 
     def member_count(self) -> int:
         db = get_db()
+        p = placeholder()
         row = db.execute(
-            "SELECT COUNT(*) FROM room_members WHERE room_id = ?", (self.id,)
+            f"SELECT COUNT(*) FROM room_members WHERE room_id = {p}", (self.id,)
         ).fetchone()
         return row[0] if row else 0
 
@@ -156,46 +179,61 @@ class Room:
         if not self.can_add_member(telegram_id):
             return False
         db = get_db()
+        p = placeholder()
         with get_lock():
-            db.execute(
-                """
-                INSERT OR IGNORE INTO room_members (room_id, telegram_id, joined_at)
-                VALUES (?, ?, ?)
-                """,
-                (self.id, telegram_id, datetime.utcnow().isoformat()),
-            )
+            if is_postgres():
+                db.execute(
+                    f"""
+                    INSERT INTO room_members (room_id, telegram_id, joined_at)
+                    VALUES ({p}, {p}, {p})
+                    ON CONFLICT DO NOTHING
+                    """,
+                    (self.id, telegram_id, datetime.utcnow().isoformat()),
+                )
+            else:
+                db.execute(
+                    f"""
+                    INSERT OR IGNORE INTO room_members (room_id, telegram_id, joined_at)
+                    VALUES ({p}, {p}, {p})
+                    """,
+                    (self.id, telegram_id, datetime.utcnow().isoformat()),
+                )
             db.commit()
         return True
 
     def remove_member(self, telegram_id: int) -> None:
         db = get_db()
+        p = placeholder()
         with get_lock():
             db.execute(
-                "DELETE FROM room_members WHERE room_id = ? AND telegram_id = ?",
+                f"DELETE FROM room_members WHERE room_id = {p} AND telegram_id = {p}",
                 (self.id, telegram_id),
             )
             db.commit()
 
     def deactivate(self) -> None:
         db = get_db()
+        p = placeholder()
         with get_lock():
-            db.execute("UPDATE rooms SET is_active = 0 WHERE id = ?", (self.id,))
+            db.execute(f"UPDATE rooms SET is_active = 0 WHERE id = {p}", (self.id,))
             db.commit()
         self.is_active = False
 
     def set_current_video(self, video_id: int) -> None:
         db = get_db()
+        p = placeholder()
         with get_lock():
-            db.execute("UPDATE rooms SET current_video_id = ? WHERE id = ?", (video_id, self.id))
+            db.execute(f"UPDATE rooms SET current_video_id = {p} WHERE id = {p}", (video_id, self.id))
             db.commit()
         self.current_video_id = video_id
 
     def get_videos(self) -> list[dict]:
         db = get_db()
+        p = placeholder()
         rows = db.execute(
-            """
+            f"""
             SELECT id, youtube_url, title, added_by, added_at
-            FROM videos WHERE room_id = ?
+            FROM videos WHERE room_id = {p}
             ORDER BY added_at
             """,
             (self.id,),
@@ -217,17 +255,30 @@ class Video:
 
     def save(self) -> None:
         db = get_db()
+        p = placeholder()
         if self.added_at is None:
             self.added_at = datetime.utcnow().isoformat()
-        cursor = db.execute(
-            """
-            INSERT INTO videos (room_id, youtube_url, title, added_by, added_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (self.room_id, self.youtube_url, self.title, self.added_by, self.added_at),
-        )
+        if is_postgres():
+            cursor = db.execute(
+                f"""
+                INSERT INTO videos (room_id, youtube_url, title, added_by, added_at)
+                VALUES ({p}, {p}, {p}, {p}, {p})
+                RETURNING id
+                """,
+                (self.room_id, self.youtube_url, self.title, self.added_by, self.added_at),
+            )
+            row = cursor.fetchone()
+            self.id = row[0] if row else None
+        else:
+            cursor = db.execute(
+                f"""
+                INSERT INTO videos (room_id, youtube_url, title, added_by, added_at)
+                VALUES ({p}, {p}, {p}, {p}, {p})
+                """,
+                (self.room_id, self.youtube_url, self.title, self.added_by, self.added_at),
+            )
+            self.id = cursor.lastrowid
         db.commit()
-        self.id = cursor.lastrowid
 
     @classmethod
     def extract_video_id(cls, url: str) -> Optional[str]:
