@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from services.database import get_db
+from services.database import get_db, get_lock
 from models.subscription import Subscription
 
 
@@ -24,24 +24,25 @@ class Room:
 
     def save(self) -> None:
         db = get_db()
-        if self.created_at is None:
-            self.created_at = datetime.utcnow().isoformat()
-        cursor = db.execute(
-            """
-            INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(code) DO UPDATE SET
-                title = excluded.title,
-                is_active = excluded.is_active,
-                current_video_id = excluded.current_video_id,
-                password = excluded.password,
-                is_public = excluded.is_public
-            """,
-            (self.code, self.creator_id, self.title, self.created_at, self.is_active,
-             self.current_video_id, self.password, 1 if self.is_public else 0),
-        )
-        db.commit()
-        self.id = cursor.lastrowid
+        with get_lock():
+            if self.created_at is None:
+                self.created_at = datetime.utcnow().isoformat()
+            cursor = db.execute(
+                """
+                INSERT INTO rooms (code, creator_id, title, created_at, is_active, current_video_id, password, is_public)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(code) DO UPDATE SET
+                    title = excluded.title,
+                    is_active = excluded.is_active,
+                    current_video_id = excluded.current_video_id,
+                    password = excluded.password,
+                    is_public = excluded.is_public
+                """,
+                (self.code, self.creator_id, self.title, self.created_at, self.is_active,
+                 self.current_video_id, self.password, 1 if self.is_public else 0),
+            )
+            db.commit()
+            self.id = cursor.lastrowid
 
     @classmethod
     def create(cls, creator_id: int, title: str = "Киновечер",
@@ -155,34 +156,38 @@ class Room:
         if not self.can_add_member(telegram_id):
             return False
         db = get_db()
-        db.execute(
-            """
-            INSERT OR IGNORE INTO room_members (room_id, telegram_id, joined_at)
-            VALUES (?, ?, ?)
-            """,
-            (self.id, telegram_id, datetime.utcnow().isoformat()),
-        )
-        db.commit()
+        with get_lock():
+            db.execute(
+                """
+                INSERT OR IGNORE INTO room_members (room_id, telegram_id, joined_at)
+                VALUES (?, ?, ?)
+                """,
+                (self.id, telegram_id, datetime.utcnow().isoformat()),
+            )
+            db.commit()
         return True
 
     def remove_member(self, telegram_id: int) -> None:
         db = get_db()
-        db.execute(
-            "DELETE FROM room_members WHERE room_id = ? AND telegram_id = ?",
-            (self.id, telegram_id),
-        )
-        db.commit()
+        with get_lock():
+            db.execute(
+                "DELETE FROM room_members WHERE room_id = ? AND telegram_id = ?",
+                (self.id, telegram_id),
+            )
+            db.commit()
 
     def deactivate(self) -> None:
         db = get_db()
-        db.execute("UPDATE rooms SET is_active = 0 WHERE id = ?", (self.id,))
-        db.commit()
+        with get_lock():
+            db.execute("UPDATE rooms SET is_active = 0 WHERE id = ?", (self.id,))
+            db.commit()
         self.is_active = False
 
     def set_current_video(self, video_id: int) -> None:
         db = get_db()
-        db.execute("UPDATE rooms SET current_video_id = ? WHERE id = ?", (video_id, self.id))
-        db.commit()
+        with get_lock():
+            db.execute("UPDATE rooms SET current_video_id = ? WHERE id = ?", (video_id, self.id))
+            db.commit()
         self.current_video_id = video_id
 
     def get_videos(self) -> list[dict]:

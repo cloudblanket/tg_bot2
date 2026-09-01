@@ -70,7 +70,7 @@ def main_menu_keyboard() -> types.InlineKeyboardMarkup:
 
 
 @router.message(CommandStart())
-async def cmd_start(message: types.Message) -> None:
+async def cmd_start(message: types.Message, state: FSMContext) -> None:
     user = User(
         telegram_id=message.from_user.id,
         username=message.from_user.username,
@@ -94,7 +94,6 @@ async def cmd_start(message: types.Message) -> None:
                     reply_markup=builder.as_markup(),
                     parse_mode="HTML",
                 )
-                state = FSMContext()
                 await state.set_state(JoinPasswordState.waiting_password)
                 await state.update_data(room_code=room.code)
                 return
@@ -414,6 +413,7 @@ async def callback_public_room_join(callback: types.CallbackQuery, state: FSMCon
         )
     else:
         await callback.answer("⚠️ Комната заполнена.", show_alert=True)
+        return
     await callback.answer()
 
 

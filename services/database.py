@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import sqlite3
 import os
+import threading
 from pathlib import Path
 
 _DB_PATH = os.getenv("DATABASE_PATH", str(Path(__file__).parent.parent / "data" / "bot.db"))
 _connection: sqlite3.Connection | None = None
+_lock = threading.Lock()
 
 
 def get_db() -> sqlite3.Connection:
@@ -21,6 +23,10 @@ def get_db() -> sqlite3.Connection:
         _connection.execute("PRAGMA foreign_keys=ON")
         init_tables(_connection)
     return _connection
+
+
+def get_lock() -> threading.Lock:
+    return _lock
 
 
 def init_tables(db: sqlite3.Connection) -> None:

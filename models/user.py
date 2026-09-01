@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from typing import Optional
 
-from services.database import get_db
+from services.database import get_db, get_lock
 
 
 @dataclass
@@ -18,24 +18,26 @@ class User:
 
     def save(self) -> None:
         db = get_db()
-        existing = self.get_by_telegram_id(self.telegram_id)
-        if existing:
-            db.execute(
-                "UPDATE users SET username = ?, first_name = ? WHERE telegram_id = ?",
-                (self.username, self.first_name, self.telegram_id),
-            )
-        else:
-            db.execute(
-                "INSERT INTO users (telegram_id, username, first_name, is_premium, tier) VALUES (?, ?, ?, ?, ?)",
-                (self.telegram_id, self.username, self.first_name, self.is_premium, self.tier),
-            )
-        db.commit()
+        with get_lock():
+            existing = self.get_by_telegram_id(self.telegram_id)
+            if existing:
+                db.execute(
+                    "UPDATE users SET username = ?, first_name = ? WHERE telegram_id = ?",
+                    (self.username, self.first_name, self.telegram_id),
+                )
+            else:
+                db.execute(
+                    "INSERT INTO users (telegram_id, username, first_name, is_premium, tier) VALUES (?, ?, ?, ?, ?)",
+                    (self.telegram_id, self.username, self.first_name, self.is_premium, self.tier),
+                )
+            db.commit()
 
     def set_tier(self, tier: str) -> None:
         self.tier = tier
         db = get_db()
-        db.execute("UPDATE users SET tier = ? WHERE telegram_id = ?", (tier, self.telegram_id))
-        db.commit()
+        with get_lock():
+            db.execute("UPDATE users SET tier = ? WHERE telegram_id = ?", (tier, self.telegram_id))
+            db.commit()
 
     @classmethod
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[User]:

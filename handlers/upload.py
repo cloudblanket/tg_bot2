@@ -39,7 +39,7 @@ async def cmd_upload(message: types.Message) -> None:
         return
 
     await message.answer(
-        "📤 Отправь видео (до 50MB).\n"
+        "📤 Отправь видео (до 350MB).\n"
         "Видео будет доступно одному зрителю и удалится после просмотра."
     )
 
@@ -61,7 +61,7 @@ async def handle_video_upload(message: types.Message) -> None:
 
     video = message.video
     if video.file_size > MAX_FILE_SIZE:
-        await message.answer("❌ Видео слишком большое (макс. 50MB).")
+        await message.answer("❌ Видео слишком большое (макс. 350MB).")
         return
 
     ensure_upload_dir()

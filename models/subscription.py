@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from services.database import get_db
+from services.database import get_db, get_lock
 
 TIERS = {
     "free": {"name": "Free", "price": 0, "price_stars": 0, "max_members": 2, "features": ["YouTube"]},
@@ -25,21 +25,22 @@ class Subscription:
 
     def save(self) -> None:
         db = get_db()
-        if self.started_at is None:
-            self.started_at = datetime.now(timezone.utc).isoformat()
-        db.execute(
-            """
-            INSERT INTO subscriptions (telegram_id, tier, started_at, expires_at, payment_id)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(telegram_id) DO UPDATE SET
-                tier = excluded.tier,
-                started_at = excluded.started_at,
-                expires_at = excluded.expires_at,
-                payment_id = excluded.payment_id
-            """,
-            (self.telegram_id, self.tier, self.started_at, self.expires_at, self.payment_id),
-        )
-        db.commit()
+        with get_lock():
+            if self.started_at is None:
+                self.started_at = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                """
+                INSERT INTO subscriptions (telegram_id, tier, started_at, expires_at, payment_id)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(telegram_id) DO UPDATE SET
+                    tier = excluded.tier,
+                    started_at = excluded.started_at,
+                    expires_at = excluded.expires_at,
+                    payment_id = excluded.payment_id
+                """,
+                (self.telegram_id, self.tier, self.started_at, self.expires_at, self.payment_id),
+            )
+            db.commit()
 
     @classmethod
     def get_by_telegram_id(cls, telegram_id: int) -> Optional[Subscription]:

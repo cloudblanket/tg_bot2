@@ -3,8 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import time
+import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, File, UploadFile, Form
@@ -28,6 +31,31 @@ start_time = time.time()
 MAX_CONNECTIONS_PER_ROOM = 50
 
 
+async def cleanup_inactive_rooms():
+    while True:
+        await asyncio.sleep(60)
+        now = time.time()
+        inactive = [
+            code for code, state in room_states.items()
+            if not state.connections and (now - state.last_activity) > ROOM_INACTIVITY_TIMEOUT
+        ]
+        for code in inactive:
+            del room_states[code]
+            logger.info("Cleaned up inactive room: %s", code)
+            try:
+                from models.room import Room
+                room = Room.get_by_code(code)
+                if room:
+                    room.deactivate()
+            except Exception:
+                pass
+
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(cleanup_inactive_rooms())
+
+
 @app.get("/health")
 async def health():
     total = sum(len(r.connections) for r in room_states.values())
@@ -41,11 +69,13 @@ class RoomState:
     is_playing: bool = False
     timestamp: float = 0.0
     last_updated: float = 0.0
+    last_activity: float = 0.0
     connections: list[WebSocket] = field(default_factory=list)
-    _json_cache: dict[str, str] = field(default_factory=dict, repr=False)
 
 
 room_states: dict[str, RoomState] = {}
+
+ROOM_INACTIVITY_TIMEOUT = 30 * 60  # 30 minutes
 
 
 def _json_dumps(msg: dict[str, Any]) -> str:
@@ -86,6 +116,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
 
     room = room_states[room_code]
     room.connections.append(websocket)
+    room.last_activity = time.time()
 
     logger.info("WS connect room=%s total=%d", room_code, len(room.connections))
 
@@ -99,6 +130,7 @@ async def websocket_endpoint(websocket: WebSocket, room_code: str) -> None:
     try:
         while True:
             raw = await websocket.receive_text()
+            room.last_activity = time.time()
             try:
                 data = json.loads(raw)
             except json.JSONDecodeError:
@@ -166,7 +198,7 @@ async def api_list_rooms():
 async def api_my_rooms(user_id: int):
     from models.room import Room
     rooms = Room.get_user_rooms(user_id)
-    return [{"code": r.code, "title": r.title, "members": r.member_count, "is_public": r.is_public, "is_active": r.is_active} for r in rooms]
+    return [{"code": r.code, "title": r.title, "members": r.member_count(), "is_public": r.is_public, "is_active": r.is_active} for r in rooms]
 
 
 @app.post("/api/rooms/create")
@@ -322,18 +354,15 @@ if STATIC_DIR.exists():
 
 @app.get("/view/{filename}")
 async def view_video(filename: str):
-    import re
-    if not re.match(r'^[a-f0-9\-]+\.mp4$', filename):
-        return {"error": "Invalid filename"}
+    if not re.match(r'^[a-f0-9\-]+\.\w+$', filename):
+        return JSONResponse({"error": "Invalid filename"}, status_code=400)
 
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
-        return {"error": "Video not found or already viewed"}
+        return JSONResponse({"error": "Video not found or already viewed"}, status_code=404)
 
-    from fastapi.responses import FileResponse
     resp = FileResponse(str(file_path), media_type="video/mp4")
 
-    import asyncio
     async def delete_after_view():
         await asyncio.sleep(1)
         try:
