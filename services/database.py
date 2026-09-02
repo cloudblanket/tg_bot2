@@ -86,6 +86,20 @@ if _use_postgres:
                 referrals_count INTEGER DEFAULT 0
             )
         """)
+        for col, dtype in [
+            ('referral_code', 'TEXT'),
+            ('referred_by', 'BIGINT DEFAULT 0'),
+            ('referrals_count', 'INTEGER DEFAULT 0'),
+        ]:
+            try:
+                db.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+            except Exception:
+                pass
+        import secrets
+        rows = db.execute("SELECT telegram_id FROM users WHERE referral_code IS NULL").fetchall()
+        for row in rows:
+            code = secrets.token_urlsafe(6)
+            db.execute("UPDATE users SET referral_code = %s WHERE telegram_id = %s", (code, row[0]))
         db.execute("""
             CREATE TABLE IF NOT EXISTS rooms (
                 id SERIAL PRIMARY KEY,
@@ -236,11 +250,18 @@ else:
             """
         )
 
-        for col in ['referral_code TEXT UNIQUE', 'referred_by INTEGER DEFAULT 0', 'referrals_count INTEGER DEFAULT 0']:
+        for col in ['tier TEXT DEFAULT \'free\'', 'referral_code TEXT', 'referred_by INTEGER DEFAULT 0', 'referrals_count INTEGER DEFAULT 0']:
             try:
                 db.execute(f"ALTER TABLE users ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass
+
+        import secrets
+        rows = db.execute("SELECT telegram_id FROM users WHERE referral_code IS NULL").fetchall()
+        for row in rows:
+            code = secrets.token_urlsafe(6)
+            db.execute("UPDATE users SET referral_code = ? WHERE telegram_id = ?", (code, row[0]))
+        db.commit()
 
         db.executescript(
             """

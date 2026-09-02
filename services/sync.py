@@ -561,7 +561,11 @@ async def api_get_referral(user_id: int):
         return {"error": "user not found"}
     from services.bot_instance import get_bot
     bot = get_bot()
-    username = (await bot.me()).username
+    if bot:
+        me = await bot.me()
+        username = me.username
+    else:
+        username = "absolut_bot"
     ref_link = f"https://t.me/{username}?start=ref_{user.referral_code}"
     return {
         "referral_code": user.referral_code,
