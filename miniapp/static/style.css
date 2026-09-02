@@ -1546,3 +1546,139 @@ body.theme-space::before {
     text-align: center;
     padding: 24px;
 }
+
+/* Vote */
+.active-vote {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 16px;
+    backdrop-filter: blur(20px);
+}
+
+.active-vote h3 {
+    font-size: 15px;
+    margin: 0 0 12px 0;
+    color: var(--text);
+}
+
+.vote-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.vote-type {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--text);
+}
+
+.vote-initiator {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.vote-progress {
+    margin-bottom: 12px;
+}
+
+.vote-bar {
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.vote-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s;
+}
+
+.vote-count {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.vote-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.vote-waiting {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+.vote-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.vote-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s;
+    backdrop-filter: blur(20px);
+}
+
+.vote-option:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: var(--accent);
+}
+
+.vote-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.vote-option-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--text);
+}
+
+.vote-option-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.vote-divider {
+    height: 1px;
+    background: var(--glass-border);
+    margin: 12px 0;
+}
+
+.vote-section-title {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.control-mode-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.control-mode-buttons .btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 8px 4px;
+}

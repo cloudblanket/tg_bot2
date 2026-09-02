@@ -28,6 +28,13 @@ const state = {
     userTier: 'free',
     theaterPlayer: null,
     joinPasswordRoom: null,
+    controlMode: 'everyone',
+    creatorId: 0,
+    hasControl: true,
+    connectedUsers: 0,
+    votersWithControl: [],
+    activeVote: null,
+    isFounder: false,
 };
 
 const els = {
@@ -61,6 +68,7 @@ const els = {
     btnSendChat: document.getElementById('btn-send-chat'),
     tabTwitch: document.getElementById('tab-twitch'),
     tabUpload: document.getElementById('tab-upload'),
+    tabVote: document.getElementById('tab-vote'),
     btnTheme: document.getElementById('btn-theme'),
     btnCloseRoom: document.getElementById('btn-close-room'),
     btnFullscreen: document.getElementById('btn-fullscreen'),
@@ -96,6 +104,9 @@ const els = {
     passwordInput: document.getElementById('password-input'),
     btnPasswordSubmit: document.getElementById('btn-password-submit'),
     btnPasswordCancel: document.getElementById('btn-password-cancel'),
+    voteList: document.getElementById('vote-list'),
+    activeVote: document.getElementById('active-vote'),
+    activeVoteContent: document.getElementById('active-vote-content'),
 };
 
 function formatTime(seconds) {
@@ -125,8 +136,22 @@ function showScreen(screen) {
     els.screenRoom.classList.remove('active');
     els.screenTheater.classList.remove('active');
     els.screenChat.classList.remove('active');
-    screen.classList.add('active');
+    if (typeof screen === 'string') {
+        document.getElementById(`screen-${screen}`)?.classList.add('active');
+    } else {
+        screen.classList.add('active');
+    }
 }
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+// ==========================================
+// LOBBY
+// ==========================================
 
 async function loadPublicRooms() {
     try {
@@ -233,22 +258,11 @@ async function createRoom() {
 
         state.userTier = 'free';
         localStorage.setItem('kinovecher-tier', 'free');
+        state.isFounder = true;
         enterRoom(data.code, data.title);
     } catch (e) {
         alert('Ошибка создания комнаты');
     }
-}
-
-function addChatMessage(name, text) {
-    const msg = document.createElement('div');
-    msg.className = 'chat-msg';
-    msg.innerHTML = `<span class="chat-msg-name">${escapeHtml(name)}:</span><span class="chat-msg-text">${escapeHtml(text)}</span>`;
-    els.chatMessages.appendChild(msg);
-    els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
-
-    const chatMsg = msg.cloneNode(true);
-    els.chatModeMessages.appendChild(chatMsg);
-    els.chatModeMessages.scrollTop = els.chatModeMessages.scrollHeight;
 }
 
 // ==========================================
@@ -271,7 +285,7 @@ async function loadMyRooms() {
     const list = document.getElementById('my-rooms-list');
     list.innerHTML = '<p class="loading-text">Загрузка...</p>';
     try {
-        const res = await fetch(`${WEBAPP_URL}/api/rooms/my/${state.userInfo.id}`);
+        const res = await fetch(`${API_BASE}/api/rooms/my/${state.userInfo.id}`);
         const rooms = await res.json();
         if (!rooms.length) {
             list.innerHTML = '<p class="empty-text">У тебя нет комнат</p>';
@@ -302,22 +316,24 @@ async function loadMyRooms() {
     }
 }
 
-function enterRoom(code) {
-    if (!code) return;
-    state.roomCode = code.trim().toUpperCase();
-    state.isFounder = false;
-    showScreen('room');
-    connectWS();
-}
+// ==========================================
+// CHAT
+// ==========================================
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
+function addChatMessage(name, text) {
+    const msg = document.createElement('div');
+    msg.className = 'chat-msg';
+    msg.innerHTML = `<span class="chat-msg-name">${escapeHtml(name)}:</span><span class="chat-msg-text">${escapeHtml(text)}</span>`;
+    els.chatMessages.appendChild(msg);
+    els.chatMessages.scrollTop = els.chatMessages.scrollHeight;
+
+    const chatMsg = msg.cloneNode(true);
+    els.chatModeMessages.appendChild(chatMsg);
+    els.chatModeMessages.scrollTop = els.chatModeMessages.scrollHeight;
 }
 
 // ==========================================
-// TABS
+// ROOM TABS
 // ==========================================
 
 document.querySelectorAll('.tab').forEach(tab => {
@@ -326,7 +342,7 @@ document.querySelectorAll('.tab').forEach(tab => {
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         tab.classList.add('active');
         const tabName = tab.dataset.tab;
-        document.getElementById(`tab-content-${tabName}`).classList.add('active');
+        document.getElementById(`tab-content-${tabName}`)?.classList.add('active');
     });
 });
 
@@ -384,16 +400,17 @@ function createPlayer(videoId, containerId) {
             },
             onStateChange: (event) => {
                 if (state.isSyncing) return;
+                if (!state.hasControl) return;
                 if (event.data === 1) {
                     state.isPlaying = true;
                     els.btnPlayPause.textContent = '⏸';
                     els.theaterPlayPause.textContent = '⏸';
-                    wsSend({ action: 'play', timestamp: getCurrentTime(), sender: getUserDisplayName() });
+                    wsSend({ action: 'play', timestamp: getCurrentTime(), sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
                 } else if (event.data === 2) {
                     state.isPlaying = false;
                     els.btnPlayPause.textContent = '▶️';
                     els.theaterPlayPause.textContent = '▶️';
-                    wsSend({ action: 'pause', timestamp: getCurrentTime(), sender: getUserDisplayName() });
+                    wsSend({ action: 'pause', timestamp: getCurrentTime(), sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
                 }
             },
         },
@@ -416,7 +433,7 @@ function seekTo(seconds) {
     const p = ytPlayer || state.theaterPlayer;
     if (p && typeof p.seekTo === 'function') {
         p.seekTo(seconds, true);
-        wsSend({ action: 'seek', timestamp: seconds, sender: getUserDisplayName() });
+        wsSend({ action: 'seek', timestamp: seconds, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
     }
 }
 
@@ -425,7 +442,7 @@ function playVideo() {
     if (p && typeof p.playVideo === 'function') {
         state.isSyncing = true;
         p.playVideo();
-        setTimeout(() => { state.isSyncing = false; }, 500);
+        setTimeout(() => { state.isSyncing = false; }, 800);
     }
 }
 
@@ -434,7 +451,7 @@ function pauseVideo() {
     if (p && typeof p.pauseVideo === 'function') {
         state.isSyncing = true;
         p.pauseVideo();
-        setTimeout(() => { state.isSyncing = false; }, 500);
+        setTimeout(() => { state.isSyncing = false; }, 800);
     }
 }
 
@@ -557,7 +574,7 @@ els.btnTwitchPlay?.addEventListener('click', () => {
     const channel = els.twitchChannelInput.value.trim();
     if (!channel) return;
     createTwitchPlayer(channel);
-    wsSend({ action: 'set_video', url: `https://twitch.tv/${channel}`, sender: getUserDisplayName() });
+    wsSend({ action: 'set_video', url: `https://twitch.tv/${channel}`, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
 });
 
 els.twitchChannelInput?.addEventListener('keypress', (e) => {
@@ -605,15 +622,13 @@ let personalizationLoaded = false;
 async function loadPersonalizationFromServer() {
     if (!state.userInfo?.id) return;
     try {
-        const res = await fetch(`${WEBAPP_URL}/api/personalize/${state.userInfo.id}`);
+        const res = await fetch(`${API_BASE}/api/personalize/${state.userInfo.id}`);
         if (!res.ok) return;
         const data = await res.json();
         applyPersonalization(data);
         highlightActiveButtons(data);
         personalizationLoaded = true;
-    } catch (e) {
-        console.error('Failed to load personalization:', e);
-    }
+    } catch (e) {}
 }
 
 function applyPersonalization(data) {
@@ -675,14 +690,12 @@ async function savePersonalizationToServer() {
     const data = getCurrentPersonalization();
     applyPersonalization(data);
     try {
-        await fetch(`${WEBAPP_URL}/api/personalize/${state.userInfo.id}`, {
+        await fetch(`${API_BASE}/api/personalize/${state.userInfo.id}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data),
         });
-    } catch (e) {
-        console.error('Failed to save personalization:', e);
-    }
+    } catch (e) {}
 }
 
 document.getElementById('btn-personalize')?.addEventListener('click', () => {
@@ -747,6 +760,7 @@ function wsConnect(roomCode) {
     state.ws.onopen = () => {
         state.reconnectAttempts = 0;
         addChatMessage('Система', 'Подключено к серверу синхронизации');
+        wsSend({ action: 'identify', user_id: state.userInfo?.id || 0, sender: getUserDisplayName() });
     };
 
     state.ws.onmessage = (event) => {
@@ -766,58 +780,148 @@ function wsSend(data) {
 }
 
 function handleWsMessage(data) {
-    if (data.type === 'state') {
-        if (data.current_video_url) {
-            if (data.current_video_url.includes('twitch.tv')) {
-                els.tabTwitch.style.display = '';
-                createTwitchPlayer(data.current_video_url.split('/').pop());
-            } else {
-                const videoId = extractVideoId(data.current_video_url);
-                if (videoId) createPlayer(videoId);
+    switch (data.type) {
+        case 'state':
+            handleInitialState(data);
+            break;
+        case 'room_state':
+            handleRoomState(data);
+            break;
+        case 'command':
+            handleCommand(data);
+            break;
+        case 'chat':
+            addChatMessage(data.sender, data.text);
+            break;
+        case 'control_mode':
+            state.controlMode = data.mode;
+            updateControlUI();
+            break;
+        case 'control_granted':
+            state.hasControl = true;
+            addChatMessage('Система', data.message);
+            updateControlUI();
+            break;
+        case 'vote_started':
+        case 'vote_update':
+            state.activeVote = data.vote;
+            renderActiveVote();
+            break;
+        case 'vote_cancelled':
+        case 'vote_completed':
+            state.activeVote = null;
+            renderActiveVote();
+            if (data.message) addChatMessage('Система', data.message);
+            break;
+        case 'vote_error':
+            addChatMessage('Система', data.message);
+            break;
+        case 'vote_result':
+            if (data.action === 'clear_video') {
+                if (ytPlayer) { ytPlayer.destroy(); ytPlayer = null; }
+                state.playerReady = false;
+                els.playerPlaceholder.classList.remove('hidden');
+                els.controls.classList.add('hidden');
             }
+            if (data.action === 'grant_control' && data.voters_with_control) {
+                state.votersWithControl = data.voters_with_control;
+                state.hasControl = data.voters_with_control.includes(state.userInfo?.id);
+                updateControlUI();
+            }
+            addChatMessage('Система', data.message || 'Голосование завершено');
+            break;
+        case 'denied':
+            addChatMessage('Система', data.message);
+            tg?.HapticFeedback?.notificationOccurred('error');
+            break;
+        case 'kicked':
+            alert(data.message);
+            state.roomCode = null;
+            if (state.ws) state.ws.close();
+            showScreen(els.screenLobby);
+            break;
+        case 'room_closed':
+            addChatMessage('Система', 'Комната закрыта создателем');
+            state.roomCode = null;
+            if (state.ws) state.ws.close();
+            showScreen(els.screenLobby);
+            loadPublicRooms();
+            break;
+    }
+}
+
+function handleInitialState(data) {
+    if (data.current_video_url) {
+        if (data.current_video_url.includes('twitch.tv')) {
+            els.tabTwitch.style.display = '';
+            createTwitchPlayer(data.current_video_url.split('/').pop());
+        } else {
+            const videoId = extractVideoId(data.current_video_url);
+            if (videoId) createPlayer(videoId);
         }
-        if (data.is_playing && ytPlayer) {
-            state.isSyncing = true;
-            ytPlayer.seekTo(data.timestamp, true);
-            ytPlayer.playVideo();
-            setTimeout(() => { state.isSyncing = false; }, 500);
-        } else if (!data.is_playing && ytPlayer) {
-            state.isSyncing = true;
-            ytPlayer.seekTo(data.timestamp, true);
-            ytPlayer.pauseVideo();
-            setTimeout(() => { state.isSyncing = false; }, 500);
-        }
-        return;
     }
 
-    if (data.type === 'command') {
-        addChatMessage(data.sender || '?', getActionText(data));
+    if (data.control_mode) state.controlMode = data.control_mode;
+    if (data.creator_id) {
+        state.creatorId = data.creator_id;
+        state.isFounder = data.creator_id === state.userInfo?.id;
+    }
+    if (data.connected_users) state.connectedUsers = data.connected_users;
+    if (data.voters_with_control) state.votersWithControl = data.voters_with_control;
+    if (data.active_vote) state.activeVote = data.active_vote;
 
-        if (data.action === 'set_video') {
-            if (data.url?.includes('twitch.tv')) {
-                els.tabTwitch.style.display = '';
-                createTwitchPlayer(data.url.split('/').pop());
-            } else {
-                const videoId = extractVideoId(data.url);
-                if (videoId) createPlayer(videoId);
-            }
-            return;
-        }
+    state.hasControl = state.controlMode === 'everyone' || state.isFounder || state.votersWithControl.includes(state.userInfo?.id);
+    updateControlUI();
+    renderActiveVote();
 
-        if (!ytPlayer) return;
+    if (data.is_playing && ytPlayer) {
         state.isSyncing = true;
-        switch (data.action) {
-            case 'play': ytPlayer.seekTo(data.timestamp, true); ytPlayer.playVideo(); break;
-            case 'pause': ytPlayer.seekTo(data.timestamp, true); ytPlayer.pauseVideo(); break;
-            case 'seek': ytPlayer.seekTo(data.timestamp, true); break;
+        ytPlayer.seekTo(data.timestamp, true);
+        ytPlayer.playVideo();
+        setTimeout(() => { state.isSyncing = false; }, 800);
+    } else if (!data.is_playing && ytPlayer) {
+        state.isSyncing = true;
+        ytPlayer.seekTo(data.timestamp, true);
+        ytPlayer.pauseVideo();
+        setTimeout(() => { state.isSyncing = false; }, 800);
+    }
+}
+
+function handleRoomState(data) {
+    if (data.control_mode) state.controlMode = data.control_mode;
+    if (data.creator_id) {
+        state.creatorId = data.creator_id;
+        state.isFounder = data.creator_id === state.userInfo?.id;
+    }
+    if (data.connected_users) state.connectedUsers = data.connected_users;
+    if (data.voters_with_control) state.votersWithControl = data.voters_with_control;
+
+    state.hasControl = state.controlMode === 'everyone' || state.isFounder || state.votersWithControl.includes(state.userInfo?.id);
+    updateControlUI();
+}
+
+function handleCommand(data) {
+    addChatMessage(data.sender || '?', getActionText(data));
+
+    if (data.action === 'set_video') {
+        if (data.url?.includes('twitch.tv')) {
+            els.tabTwitch.style.display = '';
+            createTwitchPlayer(data.url.split('/').pop());
+        } else {
+            const videoId = extractVideoId(data.url);
+            if (videoId) createPlayer(videoId);
         }
-        setTimeout(() => { state.isSyncing = false; }, 500);
         return;
     }
 
-    if (data.type === 'chat') {
-        addChatMessage(data.sender, data.text);
+    if (!ytPlayer) return;
+    state.isSyncing = true;
+    switch (data.action) {
+        case 'play': ytPlayer.seekTo(data.timestamp, true); ytPlayer.playVideo(); break;
+        case 'pause': ytPlayer.seekTo(data.timestamp, true); ytPlayer.pauseVideo(); break;
+        case 'seek': ytPlayer.seekTo(data.timestamp, true); break;
     }
+    setTimeout(() => { state.isSyncing = false; }, 800);
 }
 
 function getActionText(data) {
@@ -832,6 +936,150 @@ function getActionText(data) {
 
 function getUserDisplayName() {
     return state.userInfo?.first_name || state.userInfo?.username || 'Аноним';
+}
+
+// ==========================================
+// VOTING
+// ==========================================
+
+function updateControlUI() {
+    const controlsDisabled = !state.hasControl;
+    els.btnPlayPause.disabled = controlsDisabled;
+    els.btnSeekBack.disabled = controlsDisabled;
+    els.btnSeekForward.disabled = controlsDisabled;
+    els.btnAddVideo.disabled = controlsDisabled;
+    els.videoUrlInput.disabled = controlsDisabled;
+
+    if (controlsDisabled) {
+        els.btnPlayPause.style.opacity = '0.4';
+        els.btnAddVideo.style.opacity = '0.4';
+    } else {
+        els.btnPlayPause.style.opacity = '1';
+        els.btnAddVideo.style.opacity = '1';
+    }
+}
+
+function renderActiveVote() {
+    const container = els.activeVote;
+    const content = els.activeVoteContent;
+    if (!container || !content) return;
+
+    if (!state.activeVote) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    container.classList.remove('hidden');
+    const v = state.activeVote;
+    const required = v.required || 1;
+
+    const voteLabels = {
+        skip: '⏭ Пропустить видео',
+        next: '🎬 Следующее видео',
+        control: '🎮 Право управления',
+        kick: '🚫 Исключить участника',
+    };
+
+    const targetText = v.target_user_name ? ` (${v.target_user_name})` : '';
+    content.innerHTML = `
+        <div class="vote-header">
+            <span class="vote-type">${voteLabels[v.type] || v.type}</span>
+            <span class="vote-initiator">от ${escapeHtml(v.initiator_name)}</span>
+        </div>
+        <div class="vote-progress">
+            <div class="vote-bar">
+                <div class="vote-fill" style="width: ${Math.min(100, (v.votes_count / required) * 100)}%"></div>
+            </div>
+            <span class="vote-count">${v.votes_count} / ${required}</span>
+        </div>
+        <div class="vote-actions">
+            ${!v.voters?.includes(state.userInfo?.id) ? `
+                <button class="btn btn-primary btn-sm" onclick="voteYes()">👍 За</button>
+                <button class="btn btn-secondary btn-sm" onclick="voteNo()">✕ Отмена</button>
+            ` : '<span class="vote-waiting">Ожидаем голоса...</span>'}
+        </div>
+    `;
+}
+
+function startVote(type, targetUserId = 0, targetUserName = '') {
+    wsSend({
+        action: 'vote',
+        vote_action: 'start',
+        vote_type: type,
+        target_user_id: targetUserId,
+        target_user_name: targetUserName,
+        user_id: state.userInfo?.id || 0,
+        sender: getUserDisplayName(),
+    });
+}
+
+function voteYes() {
+    wsSend({
+        action: 'vote',
+        vote_action: 'yes',
+        user_id: state.userInfo?.id || 0,
+        sender: getUserDisplayName(),
+    });
+}
+
+function voteNo() {
+    wsSend({
+        action: 'vote',
+        vote_action: 'no',
+        user_id: state.userInfo?.id || 0,
+        sender: getUserDisplayName(),
+    });
+}
+
+function setControlMode(mode) {
+    wsSend({
+        action: 'set_control_mode',
+        mode,
+        user_id: state.userInfo?.id || 0,
+    });
+}
+
+// ==========================================
+// VOTE LIST (static buttons)
+// ==========================================
+
+function renderVoteList() {
+    if (!els.voteList) return;
+    els.voteList.innerHTML = `
+        <div class="vote-option" onclick="startVote('skip')">
+            <span class="vote-icon">⏭</span>
+            <div>
+                <div class="vote-option-title">Пропустить видео</div>
+                <div class="vote-option-desc">Остановить и сбросить текущее видео</div>
+            </div>
+        </div>
+        <div class="vote-option" onclick="startVote('next')">
+            <span class="vote-icon">🎬</span>
+            <div>
+                <div class="vote-option-title">Следующее видео</div>
+                <div class="vote-option-desc">Убрать текущее видео, выбрать новое</div>
+            </div>
+        </div>
+        <div class="vote-option" onclick="startVote('control')">
+            <span class="vote-icon">🎮</span>
+            <div>
+                <div class="vote-option-title">Получить управление</div>
+                <div class="vote-option-desc">Голос за право управлять видео</div>
+            </div>
+        </div>
+    `;
+
+    if (state.isFounder) {
+        els.voteList.innerHTML += `
+            <div class="vote-divider"></div>
+            <div class="vote-section-title">Настройки создателя</div>
+            <div class="control-mode-buttons">
+                <button class="btn btn-sm ${state.controlMode === 'everyone' ? 'btn-primary' : 'btn-secondary'}" onclick="setControlMode('everyone')">Все</button>
+                <button class="btn btn-sm ${state.controlMode === 'creator' ? 'btn-primary' : 'btn-secondary'}" onclick="setControlMode('creator')">Только я</button>
+                <button class="btn btn-sm ${state.controlMode === 'voted' ? 'btn-primary' : 'btn-secondary'}" onclick="setControlMode('voted')">По голосованию</button>
+            </div>
+        `;
+    }
 }
 
 // ==========================================
@@ -889,6 +1137,7 @@ els.passwordInput?.addEventListener('keypress', (e) => {
 els.btnBack.addEventListener('click', () => {
     if (state.ws) state.ws.close();
     state.roomCode = null;
+    state.isFounder = false;
     showScreen(els.screenLobby);
     loadPublicRooms();
 });
@@ -896,28 +1145,27 @@ els.btnBack.addEventListener('click', () => {
 els.btnCloseRoom?.addEventListener('click', closeRoom);
 
 els.btnPlayPause.addEventListener('click', () => {
-    if (!state.playerReady) return;
+    if (!state.playerReady || !state.hasControl) return;
     tg?.HapticFeedback?.impactOccurred('medium');
     if (state.isPlaying) pauseVideo(); else playVideo();
 });
 
 els.btnSeekBack.addEventListener('click', () => {
-    if (!state.playerReady) return;
+    if (!state.playerReady || !state.hasControl) return;
     seekTo(Math.max(0, getCurrentTime() - 10));
 });
 
 els.btnSeekForward.addEventListener('click', () => {
-    if (!state.playerReady) return;
+    if (!state.playerReady || !state.hasControl) return;
     seekTo(getCurrentTime() + 10);
 });
 
 els.btnAddVideo.addEventListener('click', () => {
     const url = els.videoUrlInput.value.trim();
-    if (!url) return;
+    if (!url || !state.hasControl) return;
     tg?.HapticFeedback?.notificationOccurred('success');
 
-    wsSend({ action: 'set_video', url, sender: getUserDisplayName() });
-    tg?.sendData(JSON.stringify({ action: 'add_video', room_code: state.roomCode, url, title: url }));
+    wsSend({ action: 'set_video', url, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
 
     els.videoUrlInput.value = '';
     const videoId = extractVideoId(url);
@@ -948,6 +1196,10 @@ function enterRoom(roomCode, roomTitle) {
     els.roomCodeBadge.textContent = roomCode;
     els.roomTitle.textContent = roomTitle || 'абсолют синема';
     els.roomLockBadge.style.display = 'none';
+    state.hasControl = true;
+    state.activeVote = null;
+    renderVoteList();
+    renderActiveVote();
     showScreen(els.screenRoom);
     wsConnect(roomCode);
     tg?.HapticFeedback?.notificationOccurred('success');
@@ -980,18 +1232,6 @@ async function closeRoom() {
     } catch (e) {
         alert('Ошибка закрытия комнаты');
     }
-}
-
-// ==========================================
-// INIT
-// ==========================================
-
-function initFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    const roomCode = params.get('room');
-    const tier = params.get('tier');
-    if (tier) { state.userTier = tier; localStorage.setItem('kinovecher-tier', tier); }
-    if (roomCode) enterRoom(roomCode);
 }
 
 // ==========================================
@@ -1062,7 +1302,7 @@ async function uploadFile(file) {
                 else reject(new Error(xhr.responseText));
             };
             xhr.onerror = () => reject(new Error('Network error'));
-            xhr.open('POST', `${WEBAPP_URL}/api/upload`);
+            xhr.open('POST', `${API_BASE}/api/upload`);
             xhr.send(formData);
         });
 
@@ -1070,23 +1310,22 @@ async function uploadFile(file) {
         uploadProgressFill.style.width = '100%';
         setTimeout(() => uploadProgress.classList.add('hidden'), 1500);
         uploadInput.value = '';
-        loadUploadedVideos();
     } catch (e) {
         uploadStatus.textContent = 'Ошибка: ' + (e.message || 'неизвестная');
         uploadProgressFill.style.width = '0%';
     }
 }
 
-async function loadUploadedVideos() {
-    const list = document.getElementById('uploaded-videos');
-    if (!list) return;
-    list.innerHTML = '<p class="loading-text">Загрузка...</p>';
-    try {
-        const res = await fetch(`${WEBAPP_URL}/api/rooms/my/${state.userInfo?.id || 0}`);
-        list.innerHTML = '';
-    } catch (e) {
-        list.innerHTML = '';
-    }
+// ==========================================
+// INIT
+// ==========================================
+
+function initFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    const tier = params.get('tier');
+    if (tier) { state.userTier = tier; localStorage.setItem('kinovecher-tier', tier); }
+    if (roomCode) enterRoom(roomCode);
 }
 
 function init() {
@@ -1111,6 +1350,7 @@ function applyTierFeatures() {
         els.tabTwitch.style.display = '';
         els.btnTheme.style.display = '';
     }
+    els.tabVote.style.display = '';
 }
 
 init();

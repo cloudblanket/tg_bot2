@@ -84,6 +84,7 @@
                 <button class="tab active" data-tab="youtube">🎬 YouTube</button>
                 <button class="tab" data-tab="twitch" id="tab-twitch" style="display:none">🔴 Twitch</button>
                 <button class="tab" data-tab="upload" id="tab-upload" style="display:none">📤 Загрузка</button>
+                <button class="tab" data-tab="vote" id="tab-vote">🗳 Голосование</button>
             </div>
 
             <!-- YouTube -->
@@ -146,6 +147,15 @@
                     </div>
                     <div id="uploaded-videos" class="video-list"></div>
                 </div>
+            </div>
+
+            <!-- Голосование -->
+            <div id="tab-content-vote" class="tab-content">
+                <div id="active-vote" class="active-vote hidden">
+                    <h3>📊 Активное голосование</h3>
+                    <div id="active-vote-content"></div>
+                </div>
+                <div id="vote-list" class="vote-list"></div>
             </div>
 
             <!-- Участники -->
