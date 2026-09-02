@@ -405,12 +405,12 @@ function createPlayer(videoId, containerId) {
                     state.isPlaying = true;
                     els.btnPlayPause.textContent = '⏸';
                     els.theaterPlayPause.textContent = '⏸';
-                    wsSend({ action: 'play', timestamp: getCurrentTime(), sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
+                    wsSend({ a: 'p', ts: getCurrentTime(), s: getUserDisplayName(), u: state.userInfo?.id || 0 });
                 } else if (event.data === 2) {
                     state.isPlaying = false;
                     els.btnPlayPause.textContent = '▶️';
                     els.theaterPlayPause.textContent = '▶️';
-                    wsSend({ action: 'pause', timestamp: getCurrentTime(), sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
+                    wsSend({ a: 'a', ts: getCurrentTime(), s: getUserDisplayName(), u: state.userInfo?.id || 0 });
                 }
             },
         },
@@ -433,7 +433,7 @@ function seekTo(seconds) {
     const p = ytPlayer || state.theaterPlayer;
     if (p && typeof p.seekTo === 'function') {
         p.seekTo(seconds, true);
-        wsSend({ action: 'seek', timestamp: seconds, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
+        wsSend({ a: 'k', ts: seconds, s: getUserDisplayName(), u: state.userInfo?.id || 0 });
     }
 }
 
@@ -442,7 +442,7 @@ function playVideo() {
     if (p && typeof p.playVideo === 'function') {
         state.isSyncing = true;
         p.playVideo();
-        setTimeout(() => { state.isSyncing = false; }, 800);
+        setTimeout(() => { state.isSyncing = false; }, 300);
     }
 }
 
@@ -451,7 +451,7 @@ function pauseVideo() {
     if (p && typeof p.pauseVideo === 'function') {
         state.isSyncing = true;
         p.pauseVideo();
-        setTimeout(() => { state.isSyncing = false; }, 800);
+        setTimeout(() => { state.isSyncing = false; }, 300);
     }
 }
 
@@ -525,7 +525,7 @@ els.btnExitChat?.addEventListener('click', exitChatMode);
 els.btnChatModeSend?.addEventListener('click', () => {
     const text = els.chatModeInput.value.trim();
     if (!text) return;
-    wsSend({ action: 'chat', text, sender: getUserDisplayName(), sender_id: state.userInfo?.id || 0 });
+    wsSend({ a: 'c', tx: text, s: getUserDisplayName(), u: state.userInfo?.id || 0 });
     addChatMessage('Я', text);
     els.chatModeInput.value = '';
 });
@@ -574,7 +574,7 @@ els.btnTwitchPlay?.addEventListener('click', () => {
     const channel = els.twitchChannelInput.value.trim();
     if (!channel) return;
     createTwitchPlayer(channel);
-    wsSend({ action: 'set_video', url: `https://twitch.tv/${channel}`, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
+    wsSend({ a: 'sv', v: `https://twitch.tv/${channel}`, s: getUserDisplayName(), u: state.userInfo?.id || 0 });
 });
 
 els.twitchChannelInput?.addEventListener('keypress', (e) => {
@@ -760,7 +760,7 @@ function wsConnect(roomCode) {
     state.ws.onopen = () => {
         state.reconnectAttempts = 0;
         addChatMessage('Система', 'Подключено к серверу синхронизации');
-        wsSend({ action: 'identify', user_id: state.userInfo?.id || 0, sender: getUserDisplayName() });
+        wsSend({ a: 'i', u: state.userInfo?.id || 0, s: getUserDisplayName() });
     };
 
     state.ws.onmessage = (event) => {
@@ -780,68 +780,71 @@ function wsSend(data) {
 }
 
 function handleWsMessage(data) {
-    switch (data.type) {
+    switch (data.t) {
         case 'state':
             handleInitialState(data);
             break;
-        case 'room_state':
+        case 'rs':
             handleRoomState(data);
             break;
-        case 'command':
+        case 'cmd':
             handleCommand(data);
             break;
-        case 'chat':
-            addChatMessage(data.sender, data.text);
+        case 'sync':
+            handleSync(data);
             break;
-        case 'control_mode':
-            state.controlMode = data.mode;
+        case 'c':
+            addChatMessage(data.s, data.tx);
+            break;
+        case 'cm':
+            state.controlMode = data.m;
             updateControlUI();
             break;
-        case 'control_granted':
+        case 'cg':
             state.hasControl = true;
-            addChatMessage('Система', data.message);
+            addChatMessage('Система', data.m);
             updateControlUI();
             break;
-        case 'vote_started':
-        case 'vote_update':
-            state.activeVote = data.vote;
+        case 'vs':
+        case 'vu':
+            state.activeVote = data.v;
             renderActiveVote();
             break;
-        case 'vote_cancelled':
-        case 'vote_completed':
+        case 'vc':
+        case 'vcl':
             state.activeVote = null;
             renderActiveVote();
-            if (data.message) addChatMessage('Система', data.message);
+            if (data.m) addChatMessage('Система', data.m);
             break;
-        case 'vote_error':
-            addChatMessage('Система', data.message);
+        case 've':
+            addChatMessage('Система', data.m);
             break;
-        case 'vote_result':
-            if (data.action === 'clear_video') {
+        case 'vr':
+            if (data.a === 'clr') {
                 if (ytPlayer) { ytPlayer.destroy(); ytPlayer = null; }
                 state.playerReady = false;
                 els.playerPlaceholder.classList.remove('hidden');
                 els.controls.classList.add('hidden');
             }
-            if (data.action === 'grant_control' && data.voters_with_control) {
-                state.votersWithControl = data.voters_with_control;
-                state.hasControl = data.voters_with_control.includes(state.userInfo?.id);
+            if (data.a === 'gc' && data.vc) {
+                state.votersWithControl = data.vc;
+                state.hasControl = data.vc.includes(state.userInfo?.id);
                 updateControlUI();
             }
-            addChatMessage('Система', data.message || 'Голосование завершено');
+            addChatMessage('Система', data.m || 'Голосование завершено');
             break;
-        case 'denied':
-            addChatMessage('Система', data.message);
+        case 'd':
+            addChatMessage('Система', data.m);
             tg?.HapticFeedback?.notificationOccurred('error');
             break;
         case 'kicked':
-            alert(data.message);
+            alert(data.m);
             state.roomCode = null;
             if (state.ws) state.ws.close();
             showScreen(els.screenLobby);
             break;
-        case 'room_closed':
-            addChatMessage('Система', 'Комната закрыта создателем');
+        case 'rc':
+            addChatMessage('Система', 'Комната закрыта');
             state.roomCode = null;
             if (state.ws) state.ws.close();
             showScreen(els.screenLobby);
@@ -851,64 +854,64 @@ function handleWsMessage(data) {
 }
 
 function handleInitialState(data) {
-    if (data.current_video_url) {
-        if (data.current_video_url.includes('twitch.tv')) {
+    if (data.v) {
+        if (data.v.includes('twitch.tv')) {
             els.tabTwitch.style.display = '';
-            createTwitchPlayer(data.current_video_url.split('/').pop());
+            createTwitchPlayer(data.v.split('/').pop());
         } else {
-            const videoId = extractVideoId(data.current_video_url);
+            const videoId = extractVideoId(data.v);
             if (videoId) createPlayer(videoId);
         }
     }
 
-    if (data.control_mode) state.controlMode = data.control_mode;
-    if (data.creator_id) {
-        state.creatorId = data.creator_id;
-        state.isFounder = data.creator_id === state.userInfo?.id;
+    if (data.cm) state.controlMode = data.cm;
+    if (data.cr) {
+        state.creatorId = data.cr;
+        state.isFounder = data.cr === state.userInfo?.id;
     }
-    if (data.connected_users) state.connectedUsers = data.connected_users;
-    if (data.voters_with_control) state.votersWithControl = data.voters_with_control;
-    if (data.active_vote) state.activeVote = data.active_vote;
+    if (data.cu) state.connectedUsers = data.cu;
+    if (data.vc) state.votersWithControl = data.vc;
+    if (data.av) state.activeVote = data.av;
 
     state.hasControl = state.controlMode === 'everyone' || state.isFounder || state.votersWithControl.includes(state.userInfo?.id);
     updateControlUI();
     renderActiveVote();
 
-    if (data.is_playing && ytPlayer) {
+    if (data.p && ytPlayer) {
         state.isSyncing = true;
-        ytPlayer.seekTo(data.timestamp, true);
+        ytPlayer.seekTo(data.ts, true);
         ytPlayer.playVideo();
-        setTimeout(() => { state.isSyncing = false; }, 800);
-    } else if (!data.is_playing && ytPlayer) {
+        setTimeout(() => { state.isSyncing = false; }, 300);
+    } else if (!data.p && ytPlayer) {
         state.isSyncing = true;
-        ytPlayer.seekTo(data.timestamp, true);
+        ytPlayer.seekTo(data.ts, true);
         ytPlayer.pauseVideo();
-        setTimeout(() => { state.isSyncing = false; }, 800);
+        setTimeout(() => { state.isSyncing = false; }, 300);
     }
 }
 
 function handleRoomState(data) {
-    if (data.control_mode) state.controlMode = data.control_mode;
-    if (data.creator_id) {
-        state.creatorId = data.creator_id;
-        state.isFounder = data.creator_id === state.userInfo?.id;
+    if (data.cm) state.controlMode = data.cm;
+    if (data.cr) {
+        state.creatorId = data.cr;
+        state.isFounder = data.cr === state.userInfo?.id;
     }
-    if (data.connected_users) state.connectedUsers = data.connected_users;
-    if (data.voters_with_control) state.votersWithControl = data.voters_with_control;
+    if (data.cu) state.connectedUsers = data.cu;
+    if (data.vc) state.votersWithControl = data.vc;
 
     state.hasControl = state.controlMode === 'everyone' || state.isFounder || state.votersWithControl.includes(state.userInfo?.id);
     updateControlUI();
 }
 
 function handleCommand(data) {
-    addChatMessage(data.sender || '?', getActionText(data));
+    addChatMessage(data.s || '?', getActionText(data));
 
-    if (data.action === 'set_video') {
-        if (data.url?.includes('twitch.tv')) {
+    if (data.a === 'sv') {
+        if (data.v?.includes('twitch.tv')) {
             els.tabTwitch.style.display = '';
-            createTwitchPlayer(data.url.split('/').pop());
+            createTwitchPlayer(data.v.split('/').pop());
         } else {
-            const videoId = extractVideoId(data.url);
+            const videoId = extractVideoId(data.v);
             if (videoId) createPlayer(videoId);
         }
         return;
@@ -916,21 +919,40 @@ function handleCommand(data) {
 
     if (!ytPlayer) return;
     state.isSyncing = true;
-    switch (data.action) {
-        case 'play': ytPlayer.seekTo(data.timestamp, true); ytPlayer.playVideo(); break;
-        case 'pause': ytPlayer.seekTo(data.timestamp, true); ytPlayer.pauseVideo(); break;
-        case 'seek': ytPlayer.seekTo(data.timestamp, true); break;
+    switch (data.a) {
+        case 'p': ytPlayer.seekTo(data.ts, true); ytPlayer.playVideo(); break;
+        case 'a': ytPlayer.seekTo(data.ts, true); ytPlayer.pauseVideo(); break;
+        case 'k': ytPlayer.seekTo(data.ts, true); break;
     }
-    setTimeout(() => { state.isSyncing = false; }, 800);
+    setTimeout(() => { state.isSyncing = false; }, 300);
+}
+
+function handleSync(data) {
+    if (!ytPlayer) return;
+    const diff = Math.abs(ytPlayer.getCurrentTime() - data.ts);
+    if (diff > 2) {
+        state.isSyncing = true;
+        ytPlayer.seekTo(data.ts, true);
+        setTimeout(() => { state.isSyncing = false; }, 200);
+    }
+    if (data.p && !state.isPlaying) {
+        state.isSyncing = true;
+        ytPlayer.playVideo();
+        setTimeout(() => { state.isSyncing = false; }, 200);
+    } else if (!data.p && state.isPlaying) {
+        state.isSyncing = true;
+        ytPlayer.pauseVideo();
+        setTimeout(() => { state.isSyncing = false; }, 200);
+    }
 }
 
 function getActionText(data) {
-    switch (data.action) {
-        case 'play': return `▶️ Воспроизведение (${formatTime(data.timestamp)})`;
-        case 'pause': return `⏸ Пауза (${formatTime(data.timestamp)})`;
-        case 'seek': return `⏩ Перемотка на ${formatTime(data.timestamp)}`;
-        case 'set_video': return '🎬 Новое видео';
-        default: return data.action;
+    switch (data.a) {
+        case 'p': return `▶️ Воспроизведение (${formatTime(data.ts)})`;
+        case 'a': return `⏸ Пауза (${formatTime(data.ts)})`;
+        case 'k': return `⏩ Перемотка на ${formatTime(data.ts)}`;
+        case 'sv': return '🎬 Новое видео';
+        default: return data.a;
     }
 }
 
@@ -1003,40 +1025,22 @@ function renderActiveVote() {
 
 function startVote(type, targetUserId = 0, targetUserName = '') {
     wsSend({
-        action: 'vote',
-        vote_action: 'start',
-        vote_type: type,
-        target_user_id: targetUserId,
-        target_user_name: targetUserName,
-        user_id: state.userInfo?.id || 0,
-        sender: getUserDisplayName(),
+        a: 'v', va: 's', vt: type,
+        tid: targetUserId, tn: targetUserName,
+        u: state.userInfo?.id || 0, s: getUserDisplayName(),
     });
 }
 
 function voteYes() {
-    wsSend({
-        action: 'vote',
-        vote_action: 'yes',
-        user_id: state.userInfo?.id || 0,
-        sender: getUserDisplayName(),
-    });
+    wsSend({ a: 'v', va: 'y', u: state.userInfo?.id || 0, s: getUserDisplayName() });
 }
 
 function voteNo() {
-    wsSend({
-        action: 'vote',
-        vote_action: 'no',
-        user_id: state.userInfo?.id || 0,
-        sender: getUserDisplayName(),
-    });
+    wsSend({ a: 'v', va: 'n', u: state.userInfo?.id || 0, s: getUserDisplayName() });
 }
 
 function setControlMode(mode) {
-    wsSend({
-        action: 'set_control_mode',
-        mode,
-        user_id: state.userInfo?.id || 0,
-    });
+    wsSend({ a: 'cm', m: mode, u: state.userInfo?.id || 0 });
 }
 
 // ==========================================
@@ -1165,7 +1169,7 @@ els.btnAddVideo.addEventListener('click', () => {
     if (!url || !state.hasControl) return;
     tg?.HapticFeedback?.notificationOccurred('success');
 
-    wsSend({ action: 'set_video', url, sender: getUserDisplayName(), user_id: state.userInfo?.id || 0 });
+    wsSend({ a: 'sv', v: url, s: getUserDisplayName(), u: state.userInfo?.id || 0 });
 
     els.videoUrlInput.value = '';
     const videoId = extractVideoId(url);
@@ -1182,7 +1186,7 @@ els.chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendC
 function sendChatMessage() {
     const text = els.chatInput.value.trim();
     if (!text) return;
-    wsSend({ action: 'chat', text, sender: getUserDisplayName(), sender_id: state.userInfo?.id || 0 });
+    wsSend({ a: 'c', tx: text, s: getUserDisplayName(), u: state.userInfo?.id || 0 });
     addChatMessage('Я', text);
     els.chatInput.value = '';
 }
