@@ -266,6 +266,53 @@ async function createRoom() {
 }
 
 // ==========================================
+// REFERRAL
+// ==========================================
+
+let referralData = null;
+
+async function loadReferralInfo() {
+    const userId = tg?.initDataUnsafe?.user?.id;
+    if (!userId) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/api/referral/${userId}`);
+        if (!res.ok) return;
+        referralData = await res.json();
+
+        const info = document.getElementById('referral-info');
+        if (info) {
+            info.innerHTML = `
+                Приглашено: <b>${referralData.referrals_count}</b> чел.<br>
+                <span class="referral-link">${referralData.referral_link}</span>
+            `;
+        }
+    } catch (e) {
+        console.error('Referral load error:', e);
+    }
+}
+
+function copyReferralLink() {
+    if (!referralData?.referral_link) return;
+    navigator.clipboard.writeText(referralData.referral_link).then(() => {
+        tg?.HapticFeedback?.notificationOccurred('success');
+        const btn = document.getElementById('btn-ref-copy');
+        if (btn) { btn.textContent = '✅ Скопировано!'; setTimeout(() => btn.textContent = '📋 Копировать ссылку', 2000); }
+    });
+}
+
+function shareReferralLink() {
+    if (!referralData?.referral_link) return;
+    if (tg?.shareMessage) {
+        tg.shareMessage(referralData.referral_link);
+    } else if (navigator.share) {
+        navigator.share({ title: 'абсолют синема', text: 'Присоединяйся!', url: referralData.referral_link });
+    } else {
+        copyReferralLink();
+    }
+}
+
+// ==========================================
 // LOBBY TABS
 // ==========================================
 
@@ -1342,7 +1389,12 @@ function init() {
     if (tg?.initDataUnsafe?.user) state.userInfo = tg.initDataUnsafe.user;
     applyTierFeatures();
     loadPersonalizationFromServer();
-    if (!state.roomCode) loadPublicRooms();
+    if (!state.roomCode) {
+        loadPublicRooms();
+        loadReferralInfo();
+    }
+    document.getElementById('btn-ref-copy')?.addEventListener('click', copyReferralLink);
+    document.getElementById('btn-ref-share')?.addEventListener('click', shareReferralLink);
 }
 
 function applyTierFeatures() {

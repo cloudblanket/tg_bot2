@@ -79,47 +79,59 @@ async def cmd_start(message: types.Message, state: FSMContext) -> None:
     user.save()
 
     args = message.text.split(maxsplit=1)
-    if len(args) > 1 and args[1].startswith("join_"):
-        room_code = args[1][5:]
-        from models.room import Room
-        room = Room.get_by_code(room_code)
-        if room and room.is_active:
-            sub = Subscription.get_by_telegram_id(message.from_user.id)
-            if room.password:
-                builder = InlineKeyboardBuilder()
-                builder.button(text="← Назад", callback_data="menu:main")
-                await send_and_track(
-                    message,
-                    f"🔒 Комната <code>{room.code}</code> за паролем.\nВведи пароль:",
-                    reply_markup=builder.as_markup(),
-                    parse_mode="HTML",
+    if len(args) > 1:
+        code = args[1]
+        if code.startswith("join_"):
+            room_code = code[5:]
+            from models.room import Room
+            room = Room.get_by_code(room_code)
+            if room and room.is_active:
+                sub = Subscription.get_by_telegram_id(message.from_user.id)
+                if room.password:
+                    builder = InlineKeyboardBuilder()
+                    builder.button(text="← Назад", callback_data="menu:main")
+                    await send_and_track(
+                        message,
+                        f"🔒 Комната <code>{room.code}</code> за паролем.\nВведи пароль:",
+                        reply_markup=builder.as_markup(),
+                        parse_mode="HTML",
+                    )
+                    await state.set_state(JoinPasswordState.waiting_password)
+                    await state.update_data(room_code=room.code)
+                    return
+                if room.add_member(message.from_user.id):
+                    builder = InlineKeyboardBuilder()
+                    builder.button(
+                        text="🎬 Открыть киновечер",
+                        web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
+                    )
+                    builder.button(text="← Назад", callback_data="menu:main")
+                    builder.adjust(1)
+                    await send_and_track(
+                        message,
+                        f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
+                        reply_markup=builder.as_markup(),
+                        parse_mode="HTML",
+                    )
+                    return
+                else:
+                    await send_and_track(message, "⚠️ Комната заполнена.")
+                    return
+        elif code.startswith("ref_"):
+            ref_code = code[4:]
+            inviter = User.get_by_referral_code(ref_code)
+            if inviter and inviter.telegram_id != message.from_user.id:
+                user.referred_by = inviter.telegram_id
+                user.save()
+                inviter.increment_referrals()
+                await message.answer(
+                    f"🎁 Ты приглашён пользователем {inviter.first_name or inviter.username or 'Аноним'}!"
                 )
-                await state.set_state(JoinPasswordState.waiting_password)
-                await state.update_data(room_code=room.code)
-                return
-            if room.add_member(message.from_user.id):
-                builder = InlineKeyboardBuilder()
-                builder.button(
-                    text="🎬 Открыть киновечер",
-                    web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?room={room.code}&tier={sub.tier}"),
-                )
-                builder.button(text="← Назад", callback_data="menu:main")
-                builder.adjust(1)
-                await send_and_track(
-                    message,
-                    f"✅ Ты в комнате <code>{room.code}</code>!\n📌 {room.title}",
-                    reply_markup=builder.as_markup(),
-                    parse_mode="HTML",
-                )
-                return
-            else:
-                await send_and_track(message, "⚠️ Комната заполнена.")
-                return
 
     sub = Subscription.get_by_telegram_id(message.from_user.id)
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="🎬 Открыть КиноВечер",
+        text="🎬 Открыть Абсолют Синема",
         web_app=types.WebAppInfo(url=f"{WEBAPP_URL}?tier={sub.tier}"),
     )
     builder.button(text="💳 Подписка", callback_data="menu:subscribe")
@@ -693,7 +705,14 @@ async def callback_profile(callback: types.CallbackQuery) -> None:
     tier = sub.tier.upper()
     features = ", ".join(sub.features)
 
+    ref_link = f"https://t.me/{(await callback.bot.me()).username}?start=ref_{user.referral_code}"
+    ref_count = user.referrals_count
+
     builder = InlineKeyboardBuilder()
+    builder.button(
+        text="📤 Пригласить друга",
+        switch_inline_query=f"Присоединяйся! {ref_link}",
+    )
     builder.button(text="← Назад", callback_data="menu:main")
 
     await edit_or_send(
@@ -702,7 +721,9 @@ async def callback_profile(callback: types.CallbackQuery) -> None:
         f"Имя: {name}\n"
         f"ID: <code>{callback.from_user.id}</code>\n"
         f"💳 Тариф: <b>{tier}</b>\n"
-        f"🎬 Функции: {features}",
+        f"🎬 Функции: {features}\n\n"
+        f"👥 Приглашено: <b>{ref_count}</b> чел.\n"
+        f"🔗 Реферальная ссылка:\n<code>{ref_link}</code>",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )

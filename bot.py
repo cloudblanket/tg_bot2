@@ -51,6 +51,8 @@ def create_bot() -> Bot:
 
 async def main() -> None:
     bot = create_bot()
+    from services.bot_instance import set_bot
+    set_bot(bot)
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.include_router(start_router)

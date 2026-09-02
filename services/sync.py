@@ -552,6 +552,24 @@ async def api_save_personalization(user_id: int, data: dict):
     return {"status": "ok"}
 
 
+@app.get("/api/referral/{user_id}")
+async def api_get_referral(user_id: int):
+    from services.database import get_db, placeholder
+    from models.user import User
+    user = User.get_by_telegram_id(user_id)
+    if not user:
+        return {"error": "user not found"}
+    from services.bot_instance import get_bot
+    bot = get_bot()
+    username = (await bot.me()).username
+    ref_link = f"https://t.me/{username}?start=ref_{user.referral_code}"
+    return {
+        "referral_code": user.referral_code,
+        "referral_link": ref_link,
+        "referrals_count": user.referrals_count,
+    }
+
+
 import os
 from pathlib import Path
 

@@ -80,7 +80,10 @@ if _use_postgres:
                 username TEXT,
                 first_name TEXT,
                 is_premium BOOLEAN DEFAULT FALSE,
-                tier TEXT DEFAULT 'free'
+                tier TEXT DEFAULT 'free',
+                referral_code TEXT UNIQUE,
+                referred_by BIGINT DEFAULT 0,
+                referrals_count INTEGER DEFAULT 0
             )
         """)
         db.execute("""
@@ -178,7 +181,10 @@ else:
                 username TEXT,
                 first_name TEXT,
                 is_premium INTEGER DEFAULT 0,
-                tier TEXT DEFAULT 'free'
+                tier TEXT DEFAULT 'free',
+                referral_code TEXT UNIQUE,
+                referred_by INTEGER DEFAULT 0,
+                referrals_count INTEGER DEFAULT 0
             );
 
             CREATE TABLE IF NOT EXISTS rooms (
@@ -229,6 +235,12 @@ else:
             CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id);
             """
         )
+
+        for col in ['referral_code TEXT UNIQUE', 'referred_by INTEGER DEFAULT 0', 'referrals_count INTEGER DEFAULT 0']:
+            try:
+                db.execute(f"ALTER TABLE users ADD COLUMN {col}")
+            except sqlite3.OperationalError:
+                pass
 
         db.executescript(
             """
