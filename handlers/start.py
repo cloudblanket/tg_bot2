@@ -762,7 +762,10 @@ async def callback_help(callback: types.CallbackQuery) -> None:
         "💳 <b>Подписка</b>\n"
         "• Free: 2 чел., YouTube\n"
         "• Paid (399⭐): 5 чел., Twitch, темы\n"
-        "• VIP (999⭐): 30 чел., всё + загрузка",
+        "• VIP (999⭐): 30 чел., всё + загрузка\n\n"
+        "👥 <b>Реферальная программа</b>\n"
+        "Приглашай друзей по ссылке из профиля.\n"
+        "Каждый приглашённый считается в статистике.",
         reply_markup=builder.as_markup(),
         parse_mode="HTML",
     )
