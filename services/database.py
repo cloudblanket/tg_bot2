@@ -100,6 +100,7 @@ if _use_postgres:
         for row in rows:
             code = secrets.token_urlsafe(6)
             db.execute("UPDATE users SET referral_code = %s WHERE telegram_id = %s", (code, row[0]))
+        db.commit()
         db.execute("""
             CREATE TABLE IF NOT EXISTS rooms (
                 id SERIAL PRIMARY KEY,

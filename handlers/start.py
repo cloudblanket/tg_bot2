@@ -705,14 +705,15 @@ async def callback_profile(callback: types.CallbackQuery) -> None:
     tier = sub.tier.upper()
     features = ", ".join(sub.features)
 
-    ref_link = f"https://t.me/{(await callback.bot.me()).username}?start=ref_{user.referral_code}"
+    try:
+        me = await callback.bot.me()
+        bot_username = me.username
+    except Exception:
+        bot_username = "absolut_bot"
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user.referral_code}"
     ref_count = user.referrals_count
 
     builder = InlineKeyboardBuilder()
-    builder.button(
-        text="📤 Пригласить друга",
-        switch_inline_query=f"Присоединяйся! {ref_link}",
-    )
     builder.button(text="← Назад", callback_data="menu:main")
 
     await edit_or_send(
