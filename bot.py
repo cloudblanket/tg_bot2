@@ -31,7 +31,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def create_bot() -> Bot:
+async def main() -> None:
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not set!")
         sys.exit(1)
@@ -42,23 +42,18 @@ def create_bot() -> Bot:
         logger.info("Using proxy: %s", PROXY_URL)
         session = AiohttpSession(proxy=PROXY_URL)
 
-    return Bot(
+    bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         session=session,
     )
+    dp = Dispatcher(storage=MemoryStorage())
 
+    dp.include_router(start_router)
+    dp.include_router(subscribe_router)
+    dp.include_router(upload_router)
+    dp.include_router(webapp_router)
 
-bot = create_bot()
-dp = Dispatcher(storage=MemoryStorage())
-
-dp.include_router(start_router)
-dp.include_router(subscribe_router)
-dp.include_router(upload_router)
-dp.include_router(webapp_router)
-
-
-async def on_startup() -> None:
     from services.bot_instance import set_bot, set_dp, set_bot_username
     set_bot(bot)
     set_dp(dp)
@@ -77,32 +72,21 @@ async def on_startup() -> None:
     else:
         logger.warning("WEBAPP_URL not set, webhook not configured")
 
-
-async def on_shutdown() -> None:
-    await bot.delete_webhook()
-    logger.info("Webhook deleted")
-
-
-def _run_web_server() -> None:
-    from services.sync import app
     import uvicorn
+    from services.sync import app
 
     port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
-    logger.info("Web server on port %d", port)
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+    server = uvicorn.Server(config)
+
+    logger.info("Web server starting on port %d", port)
+
+    try:
+        await server.serve()
+    finally:
+        await bot.delete_webhook()
+        logger.info("Webhook deleted")
 
 
 if __name__ == "__main__":
-    import threading
-
-    server_thread = threading.Thread(target=_run_web_server, daemon=True)
-    server_thread.start()
-
-    async def run():
-        await on_startup()
-        try:
-            await asyncio.Event().wait()
-        finally:
-            await on_shutdown()
-
-    asyncio.run(run())
+    asyncio.run(main())
