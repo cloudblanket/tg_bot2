@@ -59,15 +59,16 @@ dp.include_router(webapp_router)
 
 
 async def on_startup() -> None:
-    from services.bot_instance import set_bot, set_dp
+    from services.bot_instance import set_bot, set_dp, set_bot_username
     set_bot(bot)
     set_dp(dp)
 
     me = await bot.get_me()
+    set_bot_username(me.username)
     logger.info("Bot: @%s (ID: %s)", me.username, me.id)
 
     if WEBAPP_URL:
-        webhook_url = f"{WEBAPP_URL}/webhook"
+        webhook_url = f"{WEBAPP_URL.rstrip('/')}/webhook"
         await bot.set_webhook(
             url=webhook_url,
             allowed_updates=["message", "callback_query", "web_app_data"],

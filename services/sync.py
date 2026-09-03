@@ -613,13 +613,8 @@ async def api_get_referral(user_id: int):
     user = User.get_by_telegram_id(user_id)
     if not user:
         return {"error": "user not found"}
-    from services.bot_instance import get_bot
-    bot = get_bot()
-    if bot:
-        me = await bot.me()
-        username = me.username
-    else:
-        username = "absolut_bot"
+    from services.bot_instance import get_bot_username
+    username = get_bot_username() or "absolut_bot"
     ref_link = f"https://t.me/{username}?start=ref_{user.referral_code}"
     return {
         "referral_code": user.referral_code,
