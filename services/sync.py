@@ -42,6 +42,7 @@ async def _startup():
     asyncio.create_task(periodic_sync())
     asyncio.create_task(cleanup_inactive_rooms())
     asyncio.create_task(cleanup_old_uploads())
+    asyncio.create_task(keep_alive())
 
 
 async def _shutdown():
@@ -80,6 +81,19 @@ async def webhook(update: dict) -> dict:
     dp = get_dp()
     if not bot or not dp:
         return {"error": "bot not ready"}
+    if bot.session.is_closed:
+        logger.warning("Bot session closed, recreating...")
+        from aiogram import Bot as FreshBot
+        from aiogram.client.default import DefaultBotProperties
+        from aiogram.enums import ParseMode
+        import os
+        fresh = FreshBot(
+            token=os.getenv("BOT_TOKEN", ""),
+            default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        )
+        from services.bot_instance import set_bot
+        set_bot(fresh)
+        bot = fresh
     telegram_update = AiogramUpdate.model_validate(update, context={"bot": bot})
     asyncio.create_task(dp.feed_update(bot, telegram_update))
     return {"status": "ok"}
@@ -247,6 +261,19 @@ async def cleanup_old_uploads():
                         logger.info("Deleted old upload: %s (age %.0fs)", f.name, age)
         except Exception as e:
             logger.warning("Upload cleanup error: %s", e)
+
+
+async def keep_alive():
+    import aiohttp
+    while True:
+        await asyncio.sleep(600)
+        try:
+            port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"http://127.0.0.1:{port}/health", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                    logger.debug("Keep-alive ping: %s", resp.status)
+        except Exception as e:
+            logger.debug("Keep-alive error: %s", e)
 
 
 @app.get("/health")
