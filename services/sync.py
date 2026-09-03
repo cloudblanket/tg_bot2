@@ -266,7 +266,7 @@ async def cleanup_old_uploads():
 async def keep_alive():
     import aiohttp
     while True:
-        await asyncio.sleep(600)
+        await asyncio.sleep(300)
         try:
             port = int(os.getenv("PORT", os.getenv("SYNC_PORT", "8765")))
             async with aiohttp.ClientSession() as session:
