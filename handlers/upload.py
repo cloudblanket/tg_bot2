@@ -77,7 +77,7 @@ async def handle_video_upload(message: types.Message) -> None:
 
     await message.answer(
         f"✅ Видео загружено!\n\n"
-        f"🔗 Ссылка для просмотра (1 раз):\n<code>{view_url}</code>\n\n"
-        f"⚠️ Видео удалится сразу после просмотра.",
+        f"🔗 Ссылка для просмотра:\n<code>{view_url}</code>\n\n"
+        f"⏰ Видео будет удалено через 12 часов.",
         parse_mode="HTML",
     )

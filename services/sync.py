@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
@@ -16,15 +17,6 @@ from starlette.middleware.cors import CORSMiddleware
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="абсолют синема", docs_url=None, redoc_url=None, openapi_url=None)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 start_time = time.time()
 MAX_CONNECTIONS_PER_ROOM = 50
 ROOM_INACTIVITY_TIMEOUT = 30 * 60
@@ -34,13 +26,50 @@ CONTROL_CREATOR = "creator"
 CONTROL_VOTED = "voted"
 
 _jcache: dict[str, str] = {}
+_JCACHE_MAX = 500
 
 
 def _jd(msg: dict[str, Any]) -> str:
     key = json.dumps(msg, separators=(",", ":"), sort_keys=True)
     if key not in _jcache:
+        if len(_jcache) >= _JCACHE_MAX:
+            _jcache.clear()
         _jcache[key] = json.dumps(msg, separators=(",", ":"))
     return _jcache[key]
+
+
+async def _startup():
+    asyncio.create_task(periodic_sync())
+    asyncio.create_task(cleanup_inactive_rooms())
+    asyncio.create_task(cleanup_old_uploads())
+
+
+async def _shutdown():
+    for code, room in list(room_states.items()):
+        for ws in list(room.connections):
+            try:
+                await ws.close()
+            except Exception:
+                pass
+        room.connections.clear()
+    room_states.clear()
+
+
+@asynccontextmanager
+async def lifespan(application):
+    await _startup()
+    yield
+    await _shutdown()
+
+
+app = FastAPI(title="абсолют синема", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @dataclass
@@ -139,7 +168,7 @@ async def broadcast_to_room(room_code: str, payload: str, exclude: Optional[WebS
 
 async def _send_safe(ws: WebSocket, payload: str, dead: list):
     try:
-        await ws.send_text(payload, timeout=0.5)
+        await ws.send_text(payload, timeout=3)
     except Exception:
         dead.append(ws)
 
@@ -189,10 +218,22 @@ async def cleanup_inactive_rooms():
                 pass
 
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(periodic_sync())
-    asyncio.create_task(cleanup_inactive_rooms())
+UPLOAD_MAX_AGE = 12 * 3600
+
+
+async def cleanup_old_uploads():
+    while True:
+        await asyncio.sleep(300)
+        now = time.time()
+        try:
+            for f in UPLOAD_DIR.iterdir():
+                if f.is_file():
+                    age = now - f.stat().st_mtime
+                    if age > UPLOAD_MAX_AGE:
+                        f.unlink()
+                        logger.info("Deleted old upload: %s (age %.0fs)", f.name, age)
+        except Exception as e:
+            logger.warning("Upload cleanup error: %s", e)
 
 
 @app.get("/health")
@@ -595,17 +636,7 @@ async def view_video(filename: str):
     file_path = UPLOAD_DIR / filename
     if not file_path.exists():
         return JSONResponse({"error": "Not found"}, status_code=404)
-    resp = FileResponse(str(file_path), media_type="video/mp4")
-
-    async def delete_after_view():
-        await asyncio.sleep(1)
-        try:
-            file_path.unlink()
-        except Exception:
-            pass
-
-    asyncio.create_task(delete_after_view())
-    return resp
+    return FileResponse(str(file_path), media_type="video/mp4")
 
 
 @app.post("/api/upload")

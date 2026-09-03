@@ -15,6 +15,7 @@ router = Router(name="start")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://tg-bot2-1-wws5.onrender.com")
 
 _last_bot_messages: dict[int, int] = {}
+_LAST_MSGS_MAX = 500
 
 
 class CreateRoomState(StatesGroup):
@@ -38,6 +39,8 @@ async def send_and_track(message: types.Message, text: str, **kwargs) -> types.M
         except Exception:
             pass
     msg = await message.answer(text, **kwargs)
+    if len(_last_bot_messages) >= _LAST_MSGS_MAX:
+        _last_bot_messages.clear()
     _last_bot_messages[chat_id] = msg.message_id
     return msg
 
@@ -298,10 +301,10 @@ async def callback_rooms(callback: types.CallbackQuery) -> None:
         )
     else:
         for room in user_rooms:
-            members = room.get_members()
+            count = room.member_count()
             lock = "🔒" if room.password else "🌐"
             builder.button(
-                text=f"{lock} {room.title} — {len(members)} чел.",
+                text=f"{lock} {room.title} — {count} чел.",
                 callback_data=f"room:{room.code}",
             )
         builder.button(text="← Назад", callback_data="menu:main")
@@ -330,9 +333,9 @@ async def callback_public_rooms(callback: types.CallbackQuery) -> None:
         )
     else:
         for room in public_rooms:
-            members = room.get_members()
+            count = room.member_count()
             builder.button(
-                text=f"🚪 {room.title} — {len(members)} чел.",
+                text=f"🚪 {room.title} — {count} чел.",
                 callback_data=f"pubroom:{room.code}",
             )
         builder.button(text="← Назад", callback_data="menu:main")

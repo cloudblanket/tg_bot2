@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from services.database import get_db, get_lock, placeholder, is_postgres
@@ -32,7 +32,7 @@ class Room:
         p = placeholder()
         with get_lock():
             if self.created_at is None:
-                self.created_at = datetime.utcnow().isoformat()
+                self.created_at = datetime.now(timezone.utc).isoformat()
             if is_postgres():
                 cursor = db.execute(
                     f"""
@@ -210,7 +210,7 @@ class Room:
                 VALUES ({p}, {p}, {p})
                 ON CONFLICT DO NOTHING
                 """,
-                (self.id, telegram_id, datetime.utcnow().isoformat()),
+                (self.id, telegram_id, datetime.now(timezone.utc).isoformat()),
             )
             db.commit()
         return True
@@ -272,7 +272,7 @@ class Video:
         db = get_db()
         p = placeholder()
         if self.added_at is None:
-            self.added_at = datetime.utcnow().isoformat()
+            self.added_at = datetime.now(timezone.utc).isoformat()
         if is_postgres():
             cursor = db.execute(
                 f"""

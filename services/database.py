@@ -33,14 +33,26 @@ if _use_postgres:
 
         def execute(self, sql: str, params: Any = None):
             cur = self._conn.cursor()
-            if params is not None:
-                cur.execute(sql, params)
-            else:
-                cur.execute(sql)
+            try:
+                if params is not None:
+                    cur.execute(sql, params)
+                else:
+                    cur.execute(sql)
+            except Exception:
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
+                raise
             return cur
 
         def commit(self):
-            self._conn.commit()
+            if not self._conn.autocommit:
+                self._conn.commit()
+
+        def rollback(self):
+            if not self._conn.autocommit:
+                self._conn.rollback()
 
         def close(self):
             self._conn.close()
@@ -49,14 +61,6 @@ if _use_postgres:
         def closed(self):
             return self._conn.closed
 
-        @property
-        def autocommit(self):
-            return self._conn.autocommit
-
-        @autocommit.setter
-        def autocommit(self, value):
-            self._conn.autocommit = value
-
         def cursor(self):
             return self._conn.cursor()
 
@@ -64,13 +68,23 @@ if _use_postgres:
         global _conn
         if _conn is None or _conn.closed:
             raw = psycopg2.connect(DATABASE_URL)
-            raw.autocommit = False
+            raw.autocommit = True
             _conn = PgWrapper(raw)
-            init_tables_pg(_conn)
+            try:
+                init_tables_pg(_conn)
+            except Exception:
+                _conn = None
+                raise
         return _conn
 
     def get_lock():
         return _lock
+
+    def _safe_alter(db, sql):
+        try:
+            db.execute(sql)
+        except Exception:
+            pass
 
     def init_tables_pg(db):
         db.execute("""
@@ -86,21 +100,6 @@ if _use_postgres:
                 referrals_count INTEGER DEFAULT 0
             )
         """)
-        for col, dtype in [
-            ('referral_code', 'TEXT'),
-            ('referred_by', 'BIGINT DEFAULT 0'),
-            ('referrals_count', 'INTEGER DEFAULT 0'),
-        ]:
-            try:
-                db.execute(f"ALTER TABLE users ADD COLUMN {col} {dtype}")
-            except Exception:
-                pass
-        import secrets
-        rows = db.execute("SELECT telegram_id FROM users WHERE referral_code IS NULL").fetchall()
-        for row in rows:
-            code = secrets.token_urlsafe(6)
-            db.execute("UPDATE users SET referral_code = %s WHERE telegram_id = %s", (code, row[0]))
-        db.commit()
         db.execute("""
             CREATE TABLE IF NOT EXISTS rooms (
                 id SERIAL PRIMARY KEY,
@@ -132,6 +131,7 @@ if _use_postgres:
                 title TEXT DEFAULT '',
                 added_by BIGINT,
                 added_at TEXT,
+                uploaded_at TEXT,
                 FOREIGN KEY (room_id) REFERENCES rooms(id)
             )
         """)
@@ -156,12 +156,27 @@ if _use_postgres:
                 border_radius TEXT
             )
         """)
+
         db.execute("CREATE INDEX IF NOT EXISTS idx_room_members_telegram ON room_members(telegram_id)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_rooms_code ON rooms(code)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_videos_room ON videos(room_id)")
         db.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_telegram ON subscriptions(telegram_id)")
-        db.commit()
+
+        for col, dtype in [
+            ('referral_code', 'TEXT'),
+            ('referred_by', 'BIGINT DEFAULT 0'),
+            ('referrals_count', 'INTEGER DEFAULT 0'),
+        ]:
+            _safe_alter(db, f"ALTER TABLE users ADD COLUMN {col} {dtype}")
+
+        _safe_alter(db, "ALTER TABLE videos ADD COLUMN uploaded_at TEXT")
+
+        import secrets
+        rows = db.execute("SELECT telegram_id FROM users WHERE referral_code IS NULL").fetchall()
+        for row in rows:
+            code = secrets.token_urlsafe(6)
+            db.execute("UPDATE users SET referral_code = %s WHERE telegram_id = %s", (code, row[0]))
 
 else:
     import sqlite3
@@ -230,6 +245,7 @@ else:
                 title TEXT DEFAULT '',
                 added_by INTEGER,
                 added_at TEXT,
+                uploaded_at TEXT,
                 FOREIGN KEY (room_id) REFERENCES rooms(id)
             );
 
@@ -256,6 +272,11 @@ else:
                 db.execute(f"ALTER TABLE users ADD COLUMN {col}")
             except sqlite3.OperationalError:
                 pass
+
+        try:
+            db.execute("ALTER TABLE videos ADD COLUMN uploaded_at TEXT")
+        except sqlite3.OperationalError:
+            pass
 
         import secrets
         rows = db.execute("SELECT telegram_id FROM users WHERE referral_code IS NULL").fetchall()
