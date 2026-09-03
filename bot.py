@@ -20,6 +20,7 @@ from handlers.subscribe import router as subscribe_router
 from handlers.upload import router as upload_router
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 PROXY_URL = os.getenv("PROXY_URL", "")
 
@@ -48,21 +49,37 @@ def create_bot() -> Bot:
     )
 
 
-async def main() -> None:
-    bot = create_bot()
-    from services.bot_instance import set_bot
-    set_bot(bot)
-    dp = Dispatcher(storage=MemoryStorage())
+bot = create_bot()
+dp = Dispatcher(storage=MemoryStorage())
 
-    dp.include_router(start_router)
-    dp.include_router(subscribe_router)
-    dp.include_router(upload_router)
-    dp.include_router(webapp_router)
+dp.include_router(start_router)
+dp.include_router(subscribe_router)
+dp.include_router(upload_router)
+dp.include_router(webapp_router)
+
+
+async def on_startup() -> None:
+    from services.bot_instance import set_bot, set_dp
+    set_bot(bot)
+    set_dp(dp)
 
     me = await bot.get_me()
     logger.info("Bot: @%s (ID: %s)", me.username, me.id)
 
-    await dp.start_polling(bot)
+    if WEBAPP_URL:
+        webhook_url = f"{WEBAPP_URL}/webhook"
+        await bot.set_webhook(
+            url=webhook_url,
+            allowed_updates=["message", "callback_query", "web_app_data"],
+        )
+        logger.info("Webhook set: %s", webhook_url)
+    else:
+        logger.warning("WEBAPP_URL not set, webhook not configured")
+
+
+async def on_shutdown() -> None:
+    await bot.delete_webhook()
+    logger.info("Webhook deleted")
 
 
 def _run_web_server() -> None:
@@ -80,4 +97,11 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=_run_web_server, daemon=True)
     server_thread.start()
 
-    asyncio.run(main())
+    async def run():
+        await on_startup()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            await on_shutdown()
+
+    asyncio.run(run())

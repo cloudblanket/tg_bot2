@@ -72,6 +72,19 @@ app.add_middleware(
 )
 
 
+@app.post("/webhook")
+async def webhook(update: dict) -> dict:
+    from aiogram.types import Update as AiogramUpdate
+    from services.bot_instance import get_bot, get_dp
+    bot = get_bot()
+    dp = get_dp()
+    if not bot or not dp:
+        return {"error": "bot not ready"}
+    telegram_update = AiogramUpdate.model_validate(update, context={"bot": bot})
+    await dp.feed_update(bot, telegram_update)
+    return {"status": "ok"}
+
+
 @dataclass
 class Vote:
     vote_type: str
