@@ -81,7 +81,7 @@ async def webhook(update: dict) -> dict:
     if not bot or not dp:
         return {"error": "bot not ready"}
     telegram_update = AiogramUpdate.model_validate(update, context={"bot": bot})
-    await dp.feed_update(bot, telegram_update)
+    asyncio.create_task(dp.feed_update(bot, telegram_update))
     return {"status": "ok"}
 
 
